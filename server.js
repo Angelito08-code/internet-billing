@@ -12,12 +12,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
-// Awtomatikong gagawa ng database para sa Invoices kung wala pa
+// Awtomatikong gagawa ng database para sa Invoices kung wala pa (May kasamang address)
 if (!fs.existsSync(DB_FILE)) {
   const initialData = [
-    { id: 1, name: "Alice Smith", plan: "50 Mbps", amount: 1200.00, status: "paid", dueDate: "2026-07-05" },
-    { id: 2, name: "Bob Jones", plan: "100 Mbps", amount: 1800.00, status: "unpaid", dueDate: "2026-07-10" },
-    { id: 3, name: "Charlie Brown", plan: "50 Mbps", amount: 45.00, status: "disconnected", dueDate: "2026-06-12" }
+    { id: 1, name: "Alice Smith", address: "Poblacion, Abulug", plan: "50 Mbps", amount: 1200.00, status: "paid", dueDate: "2026-07-05" },
+    { id: 2, name: "Bob Jones", address: "Centro, Abulug", plan: "100 Mbps", amount: 1800.00, status: "unpaid", dueDate: "2026-07-10" },
+    { id: 3, name: "Charlie Brown", address: "Lucban, Abulug", plan: "50 Mbps", amount: 45.00, status: "disconnected", dueDate: "2026-06-12" }
   ];
   fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
 }
@@ -39,7 +39,6 @@ const getDB = () => {
   db.forEach(item => {
     if (item.status === 'paid') {
       const due = new Date(item.dueDate);
-      // Kung ang kasalukuyang buwan/taon ay lumampas na sa due date buwan/taon
       if (today.getFullYear() > due.getFullYear() || 
          (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
         item.status = 'unpaid';
@@ -144,7 +143,7 @@ app.post('/api/login', (req, res) => {
   }
 });
 
-// ================= CUSTOMER PORTAL (READ-ONLY WITH DYNAMIC REMINDERS) =================
+// ================= CUSTOMER PORTAL =================
 app.get('/customer', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -169,7 +168,6 @@ app.get('/customer', (req, res) => {
           <button onclick="checkBill()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition shadow-lg">Tingnan</button>
         </div>
 
-        <!-- Reminder Box (3 Days Before, Exact Due Date, and Overdue) -->
         <div id="reminderBox" class="hidden text-xs p-3 rounded mb-4 text-center font-medium shadow"></div>
 
         <div id="resultArea" class="hidden bg-black/40 border border-gray-700 rounded-xl p-5 space-y-3 text-sm">
@@ -180,6 +178,10 @@ app.get('/customer', (req, res) => {
           <div class="flex justify-between border-b border-gray-700 pb-2">
             <span class="text-gray-400">Pangalan:</span>
             <span id="resName" class="font-semibold"></span>
+          </div>
+          <div class="flex justify-between border-b border-gray-700 pb-2">
+            <span class="text-gray-400">Address:</span>
+            <span id="resAddress" class="text-gray-200"></span>
           </div>
           <div class="flex justify-between border-b border-gray-700 pb-2">
             <span class="text-gray-400">Internet Plan:</span>
@@ -228,6 +230,7 @@ app.get('/customer', (req, res) => {
             errDiv.classList.add('hidden');
             document.getElementById('resId').textContent = data.id;
             document.getElementById('resName').textContent = data.name;
+            document.getElementById('resAddress').textContent = data.address || 'Walang address';
             document.getElementById('resPlan').textContent = data.plan;
             document.getElementById('resDueDate').textContent = data.dueDate;
             document.getElementById('resAmount').textContent = '₱' + data.amount.toFixed(2);
@@ -243,7 +246,6 @@ app.get('/customer', (req, res) => {
               statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
             }
 
-            // Araw at Due Date Calculation
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const due = new Date(data.dueDate);
@@ -253,7 +255,7 @@ app.get('/customer', (req, res) => {
 
             if (data.status !== 'paid') {
               if (diffDays === 0) {
-                reminderBox.textContent = '🚨 BABALA: Ngayon na ang iyong Due Date! Mangyaring bayaran na ang iyong bill upang maiwasan ang disconnection.';
+                reminderBox.textContent = '🚨 BABALA: Ngayon na ang iyong Due Date! Mangyaring bayaran na ang iyong bill.';
                 reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
                 reminderBox.classList.remove('hidden');
               } else if (diffDays > 0 && diffDays <= 3) {
@@ -261,7 +263,7 @@ app.get('/customer', (req, res) => {
                 reminderBox.className = 'bg-yellow-500/20 border border-yellow-500 text-yellow-200 text-xs p-3 rounded mb-4 text-center font-medium shadow';
                 reminderBox.classList.remove('hidden');
               } else if (diffDays < 0) {
-                reminderBox.textContent = \`❌ OVERDUE: Lumipas na ang iyong due date noong \${data.dueDate}. Mangyaring makipag-ugnayan agad sa admin.\`;
+                reminderBox.textContent = \`❌ OVERDUE: Lumipas na ang iyong due date noong \${data.dueDate}.\`;
                 reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
                 reminderBox.classList.remove('hidden');
               } else {
@@ -285,7 +287,6 @@ app.get('/customer', (req, res) => {
   `);
 });
 
-// CUSTOMER LOOKUP API (Read-only)
 app.get('/api/customer/:id', (req, res) => {
   const db = getDB();
   const customer = db.find(inv => inv.id.toString() === req.params.id);
@@ -312,8 +313,7 @@ app.get('/dashboard', (req, res) => {
         }
       </script>
 
-      <div class="max-w-6xl mx-auto bg-white rounded-lg shadow p-6">
-        <!-- Top Header with Logo -->
+      <div class="max-w-7xl mx-auto bg-white rounded-lg shadow p-6">
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b pb-4 gap-4">
           <div class="flex items-center gap-3">
             <div class="bg-white p-1.5 rounded-full w-16 h-16 flex items-center justify-center border border-blue-500 shadow overflow-hidden">
@@ -337,11 +337,10 @@ app.get('/dashboard', (req, res) => {
           </div>
         </div>
         
-        <!-- Summary Cards -->
         <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
 
         <!-- Controls, Search & Add Form -->
-        <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 border-b pb-4">
+        <div class="flex flex-col lg:flex-row justify-between items-center gap-4 mb-6 border-b pb-4">
           <div class="flex flex-wrap items-center gap-2">
             <div class="space-x-1 flex flex-wrap gap-1">
               <button onclick="filterStatus('all')" class="px-3 py-1 bg-gray-200 rounded text-sm font-medium hover:bg-gray-300">All</button>
@@ -350,7 +349,6 @@ app.get('/dashboard', (req, res) => {
               <button onclick="filterStatus('disconnected')" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-sm font-medium hover:bg-yellow-200">Disconnected</button>
             </div>
             
-            <!-- Search Box & Button -->
             <div class="flex items-center gap-1 ml-2">
               <input type="text" id="searchInput" placeholder="Search customer..." class="border px-3 py-1 rounded text-sm focus:outline-none focus:border-blue-500" onkeypress="handleSearchKey(event)">
               <button onclick="searchCustomer()" class="bg-gray-700 text-white px-3 py-1 rounded text-sm hover:bg-gray-800 font-medium shadow">🔍 Search</button>
@@ -358,9 +356,10 @@ app.get('/dashboard', (req, res) => {
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <input type="text" id="newId" placeholder="ID (Auto kung blangko)" class="border px-2 py-1 rounded text-sm w-32">
-            <input type="text" id="newName" placeholder="Pangalan" class="border px-2 py-1 rounded text-sm">
-            <input type="text" id="newPlan" placeholder="Plan (e.g. 50Mbps)" class="border px-2 py-1 rounded text-sm">
+            <input type="text" id="newId" placeholder="ID (Auto)" class="border px-2 py-1 rounded text-sm w-24">
+            <input type="text" id="newName" placeholder="Pangalan" class="border px-2 py-1 rounded text-sm w-32">
+            <input type="text" id="newAddress" placeholder="Address" class="border px-2 py-1 rounded text-sm w-36">
+            <input type="text" id="newPlan" placeholder="Plan" class="border px-2 py-1 rounded text-sm w-28">
             <input type="number" id="newAmount" placeholder="Halaga (₱)" class="border px-2 py-1 rounded text-sm w-24">
             <button onclick="addSubscriber()" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 font-medium shadow">Add Customer</button>
           </div>
@@ -371,8 +370,9 @@ app.get('/dashboard', (req, res) => {
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="bg-gray-100 border-b text-gray-600 text-xs uppercase">
-                <th class="p-3">Customer ID</th>
+                <th class="p-3">ID</th>
                 <th class="p-3">Customer Name</th>
+                <th class="p-3">Address</th>
                 <th class="p-3">Plan</th>
                 <th class="p-3">Due Date</th>
                 <th class="p-3">Amount</th>
@@ -395,6 +395,10 @@ app.get('/dashboard', (req, res) => {
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Customer Name</label>
               <input type="text" id="editName" class="w-full border px-3 py-2 rounded text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Address</label>
+              <input type="text" id="editAddress" class="w-full border px-3 py-2 rounded text-sm">
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Plan</label>
@@ -508,13 +512,14 @@ app.get('/dashboard', (req, res) => {
           const filtered = data.filter(item => {
             const matchesStatus = (currentFilter === 'all' || item.status === currentFilter);
             const matchesSearch = item.name.toLowerCase().includes(searchQuery) || 
+                                  (item.address && item.address.toLowerCase().includes(searchQuery)) ||
                                   item.plan.toLowerCase().includes(searchQuery) || 
                                   item.id.toString().includes(searchQuery);
             return matchesStatus && matchesSearch;
           });
           
           if (filtered.length === 0) {
-            tbody.innerHTML = \`<tr><td colspan="7" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
+            tbody.innerHTML = \`<tr><td colspan="8" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
             return;
           }
 
@@ -530,6 +535,7 @@ app.get('/dashboard', (req, res) => {
             tr.innerHTML = \`
               <td class="p-3 text-gray-600 font-mono">\${item.id}</td>
               <td class="p-3 font-medium text-gray-800">\${item.name}</td>
+              <td class="p-3 text-gray-600">\${item.address || ''}</td>
               <td class="p-3 text-gray-600">\${item.plan}</td>
               <td class="p-3 text-gray-600">\${item.dueDate}</td>
               <td class="p-3 text-gray-800 font-semibold">₱\${item.amount.toFixed(2)}</td>
@@ -540,7 +546,7 @@ app.get('/dashboard', (req, res) => {
               </td>
               <td class="p-3 flex items-center gap-2">
                 \${item.status === 'unpaid' ? \`<button onclick="markPaid(\${item.id})" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
-                <button onclick="openEditModal(\${item.id}, '\${item.name}', '\${item.plan}', '\${item.dueDate}', \${item.amount}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
+                <button onclick="openEditModal(\${item.id}, '\${item.name}', '\${item.address || ''}', '\${item.plan}', '\${item.dueDate}', \${item.amount}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
                 <button onclick="deleteCustomer(\${item.id})" class="text-red-600 hover:underline font-medium text-xs">Delete</button>
               </td>
             \`;
@@ -561,6 +567,7 @@ app.get('/dashboard', (req, res) => {
         async function addSubscriber() {
           const idInput = document.getElementById('newId').value.trim();
           const name = document.getElementById('newName').value;
+          const address = document.getElementById('newAddress').value;
           const plan = document.getElementById('newPlan').value;
           const amount = parseFloat(document.getElementById('newAmount').value);
           
@@ -572,12 +579,13 @@ app.get('/dashboard', (req, res) => {
           const res = await fetch('/api/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: idInput, name, plan, amount })
+            body: JSON.stringify({ id: idInput, name, address, plan, amount })
           });
 
           if (res.ok) {
             document.getElementById('newId').value = '';
             document.getElementById('newName').value = '';
+            document.getElementById('newAddress').value = '';
             document.getElementById('newPlan').value = '';
             document.getElementById('newAmount').value = '';
             loadData();
@@ -587,9 +595,10 @@ app.get('/dashboard', (req, res) => {
           }
         }
 
-        function openEditModal(id, name, plan, dueDate, amount, status) {
+        function openEditModal(id, name, address, plan, dueDate, amount, status) {
           document.getElementById('editId').value = id;
           document.getElementById('editName').value = name;
+          document.getElementById('editAddress').value = address;
           document.getElementById('editPlan').value = plan;
           document.getElementById('editDueDate').value = dueDate;
           document.getElementById('editAmount').value = amount;
@@ -604,6 +613,7 @@ app.get('/dashboard', (req, res) => {
         async function saveEditedCustomer() {
           const id = document.getElementById('editId').value;
           const name = document.getElementById('editName').value;
+          const address = document.getElementById('editAddress').value;
           const plan = document.getElementById('editPlan').value;
           const dueDate = document.getElementById('editDueDate').value;
           const amount = parseFloat(document.getElementById('editAmount').value);
@@ -617,7 +627,7 @@ app.get('/dashboard', (req, res) => {
           await fetch('/api/invoices/' + id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, plan, dueDate, amount, status })
+            body: JSON.stringify({ name, address, plan, dueDate, amount, status })
           });
 
           closeEditModal();
@@ -740,6 +750,7 @@ app.post('/api/invoices', (req, res) => {
   const newItem = {
     id: finalId,
     name: req.body.name,
+    address: req.body.address || "",
     plan: req.body.plan,
     amount: req.body.amount,
     status: "unpaid",
@@ -765,6 +776,7 @@ app.put('/api/invoices/:id', (req, res) => {
   if (!item) return res.status(404).json({ error: "Hindi nahanap ang record" });
   
   item.name = req.body.name || item.name;
+  item.address = req.body.address !== undefined ? req.body.address : item.address;
   item.plan = req.body.plan || item.plan;
   item.dueDate = req.body.dueDate || item.dueDate;
   item.amount = req.body.amount !== undefined ? req.body.amount : item.amount;
@@ -794,7 +806,7 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.properties.defaultRowHeight = 22;
 
-  sheet.mergeCells('A1:F1');
+  sheet.mergeCells('A1:G1');
   const titleCell = sheet.getCell('A1');
   titleCell.value = 'RTECH INTERNET BILLING & PAYMENT REPORT';
   titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFFFFF' } };
@@ -804,7 +816,7 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.addRow([]);
 
-  const headerRow = sheet.addRow(['Customer ID', 'Customer Name', 'Plan', 'Due Date', 'Amount', 'Status']);
+  const headerRow = sheet.addRow(['Customer ID', 'Customer Name', 'Address', 'Plan', 'Due Date', 'Amount', 'Status']);
   headerRow.height = 25;
   headerRow.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } };
   
@@ -829,6 +841,7 @@ app.get('/api/export-excel', async (req, res) => {
     const row = sheet.addRow([
       item.id,
       item.name,
+      item.address || '',
       item.plan,
       item.dueDate,
       item.amount,
@@ -850,12 +863,12 @@ app.get('/api/export-excel', async (req, res) => {
       };
 
       if (colNumber === 1) cell.alignment = { horizontal: 'center' };
-      if (colNumber === 4) cell.alignment = { horizontal: 'center' };
-      if (colNumber === 5) {
+      if (colNumber === 5) cell.alignment = { horizontal: 'center' };
+      if (colNumber === 6) {
         cell.numFmt = '"₱"#,##0.00';
         cell.alignment = { horizontal: 'right' };
       }
-      if (colNumber === 6) {
+      if (colNumber === 7) {
         cell.alignment = { horizontal: 'center' };
         let colorCode = '047857';
         if (item.status === 'unpaid') colorCode = 'B91C1C';
@@ -867,17 +880,17 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.addRow([]);
 
-  const paidRow = sheet.addRow(['', '', '', 'TOTAL PAID', totalPaid, '']);
+  const paidRow = sheet.addRow(['', '', '', '', 'TOTAL PAID', totalPaid, '']);
   paidRow.font = { name: 'Arial', size: 10, bold: true };
-  paidRow.getCell(4).alignment = { horizontal: 'right' };
-  paidRow.getCell(5).numFmt = '"₱"#,##0.00';
-  paidRow.getCell(5).font = { name: 'Arial', size: 10, bold: true, color: { argb: '047857' } };
+  paidRow.getCell(5).alignment = { horizontal: 'right' };
+  paidRow.getCell(6).numFmt = '"₱"#,##0.00';
+  paidRow.getCell(6).font = { name: 'Arial', size: 10, bold: true, color: { argb: '047857' } };
 
-  const unpaidRow = sheet.addRow(['', '', '', 'TOTAL UNPAID', totalUnpaid, '']);
+  const unpaidRow = sheet.addRow(['', '', '', '', 'TOTAL UNPAID', totalUnpaid, '']);
   unpaidRow.font = { name: 'Arial', size: 10, bold: true };
-  unpaidRow.getCell(4).alignment = { horizontal: 'right' };
-  unpaidRow.getCell(5).numFmt = '"₱"#,##0.00';
-  unpaidRow.getCell(5).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'B91C1C' } };
+  unpaidRow.getCell(5).alignment = { horizontal: 'right' };
+  unpaidRow.getCell(6).numFmt = '"₱"#,##0.00';
+  unpaidRow.getCell(6).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'B91C1C' } };
 
   sheet.columns.forEach(column => {
     let maxLength = 10;
