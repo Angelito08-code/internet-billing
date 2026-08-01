@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const ExcelJS = require('exceljs');
 const app = express();
-const PORT = process.env.PORT || 3000;[cite: 1]
+const PORT = process.env.PORT || 3000;
 
 const DB_FILE = path.join(__dirname, 'database.json');
 const ADMIN_FILE = path.join(__dirname, 'admins.json');
