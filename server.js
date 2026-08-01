@@ -50,8 +50,8 @@ app.get('/', (req, res) => {
     <body class="bg-gradient-to-br from-blue-950 via-gray-900 to-black min-h-screen flex items-center justify-center p-4 font-sans">
       <div class="bg-white/15 backdrop-blur-md border border-white/20 rounded-2xl p-8 max-w-md w-full shadow-2xl text-white">
         <div class="text-center mb-6">
-          <div class="bg-black/40 p-2 rounded-2xl w-28 h-28 mx-auto mb-3 flex items-center justify-center border-2 border-blue-500 shadow-lg overflow-hidden">
-            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-xl">
+          <div class="bg-white p-2 rounded-full w-28 h-28 mx-auto mb-3 flex items-center justify-center border-2 border-blue-500 shadow-lg overflow-hidden">
+            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full">
           </div>
           <h1 class="text-2xl font-bold tracking-wide mt-2">RTECH Billing System</h1>
           <p class="text-xs text-gray-300 mt-1">Sign in to your admin account</p>
@@ -137,8 +137,8 @@ app.get('/dashboard', (req, res) => {
         <!-- Top Header with Logo -->
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b pb-4 gap-4">
           <div class="flex items-center gap-3">
-            <div class="bg-gray-900 p-1.5 rounded-xl w-16 h-16 flex items-center justify-center border border-blue-500 shadow overflow-hidden">
-              <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded">
+            <div class="bg-white p-1.5 rounded-full w-16 h-16 flex items-center justify-center border border-blue-500 shadow overflow-hidden">
+              <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full">
             </div>
             <div>
               <h1 class="text-2xl font-bold text-gray-800">Internet Billing & Payment Tracker</h1>
