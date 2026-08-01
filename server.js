@@ -51,7 +51,7 @@ app.get('/', (req, res) => {
       <div class="bg-white/15 backdrop-blur-md border border-white/20 rounded-2xl p-8 max-w-md w-full shadow-2xl text-white">
         <div class="text-center mb-6">
           <div class="bg-black/40 p-2 rounded-2xl w-28 h-28 mx-auto mb-3 flex items-center justify-center border-2 border-blue-500 shadow-lg overflow-hidden">
-            <img src="/logo.jpg" alt="Logo" class="w-full h-full object-contain rounded-xl">
+            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-xl">
           </div>
           <h1 class="text-2xl font-bold tracking-wide mt-2">RTECH Billing System</h1>
           <p class="text-xs text-gray-300 mt-1">Sign in to your admin account</p>
@@ -138,7 +138,7 @@ app.get('/dashboard', (req, res) => {
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b pb-4 gap-4">
           <div class="flex items-center gap-3">
             <div class="bg-gray-900 p-1.5 rounded-xl w-16 h-16 flex items-center justify-center border border-blue-500 shadow overflow-hidden">
-              <img src="/logo.jpg" alt="Logo" class="w-full h-full object-contain rounded">
+              <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded">
             </div>
             <div>
               <h1 class="text-2xl font-bold text-gray-800">Internet Billing & Payment Tracker</h1>
@@ -179,6 +179,7 @@ app.get('/dashboard', (req, res) => {
           </div>
 
           <div class="flex flex-wrap gap-2">
+            <input type="text" id="newId" placeholder="ID (Auto kung blangko)" class="border px-2 py-1 rounded text-sm w-32">
             <input type="text" id="newName" placeholder="Pangalan" class="border px-2 py-1 rounded text-sm">
             <input type="text" id="newPlan" placeholder="Plan (e.g. 50Mbps)" class="border px-2 py-1 rounded text-sm">
             <input type="number" id="newAmount" placeholder="Halaga (₱)" class="border px-2 py-1 rounded text-sm w-24">
@@ -379,25 +380,32 @@ app.get('/dashboard', (req, res) => {
         }
 
         async function addSubscriber() {
+          const idInput = document.getElementById('newId').value.trim();
           const name = document.getElementById('newName').value;
           const plan = document.getElementById('newPlan').value;
           const amount = parseFloat(document.getElementById('newAmount').value);
           
           if (!name || !plan || isNaN(amount)) {
-            alert('Paki-punuan ang lahat ng fields nang tama.');
+            alert('Paki-punuan ang Pangalan, Plan, at Halaga nang tama.');
             return;
           }
 
-          await fetch('/api/invoices', {
+          const res = await fetch('/api/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, plan, amount })
+            body: JSON.stringify({ id: idInput, name, plan, amount })
           });
 
-          document.getElementById('newName').value = '';
-          document.getElementById('newPlan').value = '';
-          document.getElementById('newAmount').value = '';
-          loadData();
+          if (res.ok) {
+            document.getElementById('newId').value = '';
+            document.getElementById('newName').value = '';
+            document.getElementById('newPlan').value = '';
+            document.getElementById('newAmount').value = '';
+            loadData();
+          } else {
+            const err = await res.json();
+            alert(err.error || 'May problemang naganap.');
+          }
         }
 
         function openEditModal(id, name, plan, dueDate, amount, status) {
@@ -541,8 +549,17 @@ app.get('/api/invoices', (req, res) => {
 
 app.post('/api/invoices', (req, res) => {
   const db = getDB();
+  const customId = req.body.id ? req.body.id.trim() : null;
+
+  if (customId && db.some(inv => inv.id.toString() === customId)) {
+    return res.status(400).json({ error: "Mayroon nang ganyang Customer ID." });
+  }
+
+  const generatedId = db.length > 0 ? (typeof db[db.length - 1].id === 'number' ? db[db.length - 1].id + 1 : db.length + 1) : 1;
+  const finalId = customId ? (isNaN(customId) ? customId : Number(customId)) : generatedId;
+
   const newItem = {
-    id: db.length > 0 ? db[db.length - 1].id + 1 : 1,
+    id: finalId,
     name: req.body.name,
     plan: req.body.plan,
     amount: req.body.amount,
