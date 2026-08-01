@@ -120,7 +120,7 @@ app.post('/api/login', (req, res) => {
   }
 });
 
-// ================= CUSTOMER PORTAL (READ-ONLY) =================
+// ================= CUSTOMER PORTAL (READ-ONLY WITH DYNAMIC REMINDERS) =================
 app.get('/customer', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -144,6 +144,9 @@ app.get('/customer', (req, res) => {
           <input type="text" id="customerId" placeholder="Halimbawa: 1 o CUST-01" class="w-full bg-black/40 border border-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-white">
           <button onclick="checkBill()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition shadow-lg">Tingnan</button>
         </div>
+
+        <!-- Reminder Box (3 Days Before, Exact Due Date, and Overdue) -->
+        <div id="reminderBox" class="hidden text-xs p-3 rounded mb-4 text-center font-medium shadow"></div>
 
         <div id="resultArea" class="hidden bg-black/40 border border-gray-700 rounded-xl p-5 space-y-3 text-sm">
           <div class="flex justify-between border-b border-gray-700 pb-2">
@@ -184,11 +187,13 @@ app.get('/customer', (req, res) => {
           const id = document.getElementById('customerId').value.trim();
           const errDiv = document.getElementById('errorMsg');
           const resultArea = document.getElementById('resultArea');
+          const reminderBox = document.getElementById('reminderBox');
 
           if (!id) {
             errDiv.textContent = 'Mangyaring maglagay ng Customer ID.';
             errDiv.classList.remove('hidden');
             resultArea.classList.add('hidden');
+            reminderBox.classList.add('hidden');
             return;
           }
 
@@ -214,11 +219,43 @@ app.get('/customer', (req, res) => {
               statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
             }
 
+            // Araw at Due Date Calculation
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const due = new Date(data.dueDate);
+            due.setHours(0, 0, 0, 0);
+            const diffTime = due - today;
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+            if (data.status !== 'paid') {
+              if (diffDays === 0) {
+                // Mismong araw ng due date
+                reminderBox.textContent = '🚨 BABALA: Ngayon na ang iyong Due Date! Mangyaring bayaran na ang iyong bill upang maiwasan ang disconnection.';
+                reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
+                reminderBox.classList.remove('hidden');
+              } else if (diffDays > 0 && diffDays <= 3) {
+                // 1 hanggang 3 araw bago ang due date
+                reminderBox.textContent = \`⚠️ Paalala: Mayroon nalang \${diffDays} araw bago ang iyong due date (\${data.dueDate}).\`;
+                reminderBox.className = 'bg-yellow-500/20 border border-yellow-500 text-yellow-200 text-xs p-3 rounded mb-4 text-center font-medium shadow';
+                reminderBox.classList.remove('hidden');
+              } else if (diffDays < 0) {
+                // Lumipas na ang due date (Overdue)
+                reminderBox.textContent = \`❌ OVERDUE: Lumipas na ang iyong due date noong \${data.dueDate}. Mangyaring makipag-ugnayan agad sa admin.\`;
+                reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
+                reminderBox.classList.remove('hidden');
+              } else {
+                reminderBox.classList.add('hidden');
+              }
+            } else {
+              reminderBox.classList.add('hidden');
+            }
+
             resultArea.classList.remove('hidden');
           } else {
             errDiv.textContent = data.error || 'Hindi nahanap ang Customer ID na ito.';
             errDiv.classList.remove('hidden');
             resultArea.classList.add('hidden');
+            reminderBox.classList.add('hidden');
           }
         }
       </script>
@@ -590,7 +627,7 @@ app.get('/dashboard', (req, res) => {
           admins.forEach(a => {
             const div = document.createElement('div');
             div.className = 'p-2 flex justify-between items-center text-xs';
-            div.innerHTML = \`👤 \${a.username} \${admins.length > 1 ? '<button onclick="deleteAdmin(' + a.id + ')" class="text-red-600 hover:underline">Delete</button>' : '<span class="text-gray-400 italic">Default</span>'}\`;
+            div.innerHTML = \`<span>👤 \${a.username}</span> \${admins.length > 1 ? '<button onclick="deleteAdmin(' + a.id + ')" class="text-red-600 hover:underline">Delete</button>' : '<span class="text-gray-400 italic">Default</span>'}\`;
             listDiv.appendChild(div);
           });
         }
