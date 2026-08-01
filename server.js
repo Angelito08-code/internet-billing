@@ -30,8 +30,32 @@ if (!fs.existsSync(ADMIN_FILE)) {
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
 }
 
-// Helper functions
-const getDB = () => JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+// Helper functions na may Automatic Monthly Rollover para sa mga 'paid' accounts
+const getDB = () => {
+  let db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+  let updated = false;
+  const today = new Date();
+
+  db.forEach(item => {
+    if (item.status === 'paid') {
+      const due = new Date(item.dueDate);
+      // Kung ang kasalukuyang buwan/taon ay lumampas na sa due date buwan/taon
+      if (today.getFullYear() > due.getFullYear() || 
+         (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
+        item.status = 'unpaid';
+        due.setMonth(due.getMonth() + 1);
+        item.dueDate = due.toISOString().split('T')[0];
+        updated = true;
+      }
+    }
+  });
+
+  if (updated) {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  }
+  return db;
+};
+
 const saveDB = (data) => fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 
 const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
@@ -229,17 +253,14 @@ app.get('/customer', (req, res) => {
 
             if (data.status !== 'paid') {
               if (diffDays === 0) {
-                // Mismong araw ng due date
                 reminderBox.textContent = '🚨 BABALA: Ngayon na ang iyong Due Date! Mangyaring bayaran na ang iyong bill upang maiwasan ang disconnection.';
                 reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
                 reminderBox.classList.remove('hidden');
               } else if (diffDays > 0 && diffDays <= 3) {
-                // 1 hanggang 3 araw bago ang due date
                 reminderBox.textContent = \`⚠️ Paalala: Mayroon nalang \${diffDays} araw bago ang iyong due date (\${data.dueDate}).\`;
                 reminderBox.className = 'bg-yellow-500/20 border border-yellow-500 text-yellow-200 text-xs p-3 rounded mb-4 text-center font-medium shadow';
                 reminderBox.classList.remove('hidden');
               } else if (diffDays < 0) {
-                // Lumipas na ang due date (Overdue)
                 reminderBox.textContent = \`❌ OVERDUE: Lumipas na ang iyong due date noong \${data.dueDate}. Mangyaring makipag-ugnayan agad sa admin.\`;
                 reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
                 reminderBox.classList.remove('hidden');
@@ -274,7 +295,7 @@ app.get('/api/customer/:id', (req, res) => {
   res.json(customer);
 });
 
-// ================= ADMIN DASHBOARD (NASA /dashboard NA) =================
+// ================= ADMIN DASHBOARD =================
 app.get('/dashboard', (req, res) => {
   res.send(`
     <!DOCTYPE html>
