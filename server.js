@@ -17,7 +17,7 @@ if (!fs.existsSync(DB_FILE)) {
   const initialData = [
     { id: 1, name: "Alice Smith", plan: "50 Mbps", amount: 1200.00, status: "paid", dueDate: "2026-07-05" },
     { id: 2, name: "Bob Jones", plan: "100 Mbps", amount: 1800.00, status: "unpaid", dueDate: "2026-07-10" },
-    { id: 3, name: "Charlie Brown", plan: "50 Mbps", amount: 45.00, status: "unpaid", dueDate: "2026-07-12" }
+    { id: 3, name: "Charlie Brown", plan: "50 Mbps", amount: 45.00, status: "disconnected", dueDate: "2026-06-12" }
   ];
   fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
 }
@@ -159,15 +159,16 @@ app.get('/dashboard', (req, res) => {
         </div>
         
         <!-- Summary Cards -->
-        <div id="summary" class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6"></div>
+        <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
 
         <!-- Controls, Search & Add Form -->
         <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 border-b pb-4">
           <div class="flex flex-wrap items-center gap-2">
-            <div class="space-x-1">
+            <div class="space-x-1 flex flex-wrap gap-1">
               <button onclick="filterStatus('all')" class="px-3 py-1 bg-gray-200 rounded text-sm font-medium hover:bg-gray-300">All</button>
               <button onclick="filterStatus('paid')" class="px-3 py-1 bg-green-100 text-green-700 rounded text-sm font-medium hover:bg-green-200">Paid</button>
               <button onclick="filterStatus('unpaid')" class="px-3 py-1 bg-red-100 text-red-700 rounded text-sm font-medium hover:bg-red-200">Unpaid</button>
+              <button onclick="filterStatus('disconnected')" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-sm font-medium hover:bg-yellow-200">Disconnected</button>
             </div>
             
             <!-- Search Box & Button -->
@@ -232,6 +233,7 @@ app.get('/dashboard', (req, res) => {
               <select id="editStatus" class="w-full border px-3 py-2 rounded text-sm bg-white">
                 <option value="paid">PAID</option>
                 <option value="unpaid">UNPAID</option>
+                <option value="disconnected">DISCONNECTED</option>
               </select>
             </div>
           </div>
@@ -296,6 +298,7 @@ app.get('/dashboard', (req, res) => {
           const total = data.length;
           const paidCount = data.filter(d => d.status === 'paid').length;
           const unpaidCount = data.filter(d => d.status === 'unpaid').length;
+          const disconnectedCount = data.filter(d => d.status === 'disconnected').length;
           
           const totalPaidAmount = data.filter(d => d.status === 'paid').reduce((sum, d) => sum + d.amount, 0);
           const totalUnpaidAmount = data.filter(d => d.status === 'unpaid').reduce((sum, d) => sum + d.amount, 0);
@@ -306,20 +309,16 @@ app.get('/dashboard', (req, res) => {
               <div class="text-xl font-bold">\${total}</div>
             </div>
             <div class="p-4 bg-gray-50 rounded border-l-4 border-green-500 shadow-sm">
-              <div class="text-gray-500 text-xs font-medium">Paid Accounts</div>
+              <div class="text-gray-500 text-xs font-medium">Paid Accounts (₱\${totalPaidAmount.toFixed(2)})</div>
               <div class="text-xl font-bold text-green-600">\${paidCount}</div>
             </div>
-            <div class="p-4 bg-gray-50 rounded border-l-4 border-green-700 shadow-sm">
-              <div class="text-gray-500 text-xs font-medium">Total Paid Amount</div>
-              <div class="text-xl font-bold text-green-700">₱\${totalPaidAmount.toFixed(2)}</div>
-            </div>
             <div class="p-4 bg-gray-50 rounded border-l-4 border-red-500 shadow-sm">
-              <div class="text-gray-500 text-xs font-medium">Unpaid Accounts</div>
+              <div class="text-gray-500 text-xs font-medium">Unpaid Accounts (₱\${totalUnpaidAmount.toFixed(2)})</div>
               <div class="text-xl font-bold text-red-600">\${unpaidCount}</div>
             </div>
-            <div class="p-4 bg-gray-50 rounded border-l-4 border-red-700 shadow-sm">
-              <div class="text-gray-500 text-xs font-medium">Total Unpaid Amount</div>
-              <div class="text-xl font-bold text-red-700">₱\${totalUnpaidAmount.toFixed(2)}</div>
+            <div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 shadow-sm">
+              <div class="text-gray-500 text-xs font-medium">Disconnected Accounts</div>
+              <div class="text-xl font-bold text-yellow-600">\${disconnectedCount}</div>
             </div>
           \`;
 
@@ -342,6 +341,12 @@ app.get('/dashboard', (req, res) => {
           filtered.forEach(item => {
             const tr = document.createElement('tr');
             tr.className = 'border-b hover:bg-gray-50';
+            
+            let statusBadgeClass = 'bg-gray-100 text-gray-700';
+            if (item.status === 'paid') statusBadgeClass = 'bg-green-100 text-green-700';
+            else if (item.status === 'unpaid') statusBadgeClass = 'bg-red-100 text-red-700';
+            else if (item.status === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800';
+
             tr.innerHTML = \`
               <td class="p-3 text-gray-600 font-mono">\${item.id}</td>
               <td class="p-3 font-medium text-gray-800">\${item.name}</td>
@@ -349,12 +354,12 @@ app.get('/dashboard', (req, res) => {
               <td class="p-3 text-gray-600">\${item.dueDate}</td>
               <td class="p-3 text-gray-800 font-semibold">₱\${item.amount.toFixed(2)}</td>
               <td class="p-3">
-                <span class="px-2.5 py-1 text-xs rounded-full font-semibold \${item.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                <span class="px-2.5 py-1 text-xs rounded-full font-semibold \${statusBadgeClass}">
                   \${item.status.toUpperCase()}
                 </span>
               </td>
               <td class="p-3 flex items-center gap-2">
-                \${item.status === 'unpaid' ? \`<button onclick="markPaid(\${item.id})" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : '<span class="text-gray-400 italic text-xs">Paid</span>'}
+                \${item.status === 'unpaid' ? \`<button onclick="markPaid(\${item.id})" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
                 <button onclick="openEditModal(\${item.id}, '\${item.name}', '\${item.plan}', '\${item.dueDate}', \${item.amount}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
                 <button onclick="deleteCustomer(\${item.id})" class="text-red-600 hover:underline font-medium text-xs">Delete</button>
               </td>
@@ -623,7 +628,7 @@ app.get('/api/export-excel', async (req, res) => {
 
   db.forEach((item, index) => {
     if (item.status === 'paid') totalPaid += item.amount;
-    else totalUnpaid += item.amount;
+    else if (item.status === 'unpaid') totalUnpaid += item.amount;
 
     const row = sheet.addRow([
       item.id,
@@ -656,7 +661,10 @@ app.get('/api/export-excel', async (req, res) => {
       }
       if (colNumber === 6) {
         cell.alignment = { horizontal: 'center' };
-        cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: item.status === 'paid' ? '047857' : 'B91C1C' } };
+        let colorCode = '047857';
+        if (item.status === 'unpaid') colorCode = 'B91C1C';
+        else if (item.status === 'disconnected') colorCode = 'B45309';
+        cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: colorCode } };
       }
     });
   });
