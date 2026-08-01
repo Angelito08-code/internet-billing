@@ -12,12 +12,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
-// Awtomatikong gagawa ng database para sa Invoices kung wala pa (May kasamang address)
+// Awtomatikong gagawa ng database para sa Invoices kung wala pa (May kasamang previousBalance)
 if (!fs.existsSync(DB_FILE)) {
   const initialData = [
-    { id: 1, name: "Alice Smith", address: "Poblacion, Abulug", plan: "50 Mbps", amount: 1200.00, status: "paid", dueDate: "2026-07-05" },
-    { id: 2, name: "Bob Jones", address: "Centro, Abulug", plan: "100 Mbps", amount: 1800.00, status: "unpaid", dueDate: "2026-07-10" },
-    { id: 3, name: "Charlie Brown", address: "Lucban, Abulug", plan: "50 Mbps", amount: 45.00, status: "disconnected", dueDate: "2026-06-12" }
+    { id: 1, name: "Alice Smith", address: "Poblacion, Abulug", plan: "50 Mbps", amount: 1200.00, previousBalance: 0.00, status: "paid", dueDate: "2026-07-05" },
+    { id: 2, name: "Bob Jones", address: "Centro, Abulug", plan: "100 Mbps", amount: 1800.00, previousBalance: 500.00, status: "unpaid", dueDate: "2026-07-10" },
+    { id: 3, name: "Charlie Brown", address: "Lucban, Abulug", plan: "50 Mbps", amount: 1200.00, previousBalance: 1200.00, status: "disconnected", dueDate: "2026-06-12" }
   ];
   fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
 }
@@ -30,22 +30,32 @@ if (!fs.existsSync(ADMIN_FILE)) {
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
 }
 
-// Helper functions na may Automatic Monthly Rollover para sa mga 'paid' accounts
+// Helper functions na may Automatic Monthly Rollover at Previous Balance Accumulation
 const getDB = () => {
   let db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
   let updated = false;
   const today = new Date();
 
   db.forEach(item => {
-    if (item.status === 'paid') {
-      const due = new Date(item.dueDate);
-      if (today.getFullYear() > due.getFullYear() || 
-         (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
+    const due = new Date(item.dueDate);
+    // Kung lumipas na ang buwan/taon ng due date
+    if (today.getFullYear() > due.getFullYear() || 
+       (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
+      
+      if (item.status === 'paid') {
+        // Kung bayad na noong nakaraang buwan, i-reset ang previousBalance at gawing unpaid para sa bagong buwan
+        item.previousBalance = 0;
         item.status = 'unpaid';
-        due.setMonth(due.getMonth() + 1);
-        item.dueDate = due.toISOString().split('T')[0];
-        updated = true;
+      } else {
+        // Kung unpaid o disconnected at lumipas ang buwan, idagdag ang kasalukuyang amount sa previousBalance
+        item.previousBalance = (item.previousBalance || 0) + item.amount;
+        item.status = 'unpaid';
       }
+
+      // Uusad ang due date ng 1 buwan pasulong
+      due.setMonth(due.getMonth() + 1);
+      item.dueDate = due.toISOString().split('T')[0];
+      updated = true;
     }
   });
 
@@ -192,8 +202,16 @@ app.get('/customer', (req, res) => {
             <span id="resDueDate"></span>
           </div>
           <div class="flex justify-between border-b border-gray-700 pb-2">
-            <span class="text-gray-400">Halaga (Amount):</span>
-            <span id="resAmount" class="font-bold text-emerald-400"></span>
+            <span class="text-gray-400">Monthly Plan Amount:</span>
+            <span id="resAmount"></span>
+          </div>
+          <div class="flex justify-between border-b border-gray-700 pb-2">
+            <span class="text-gray-400">Previous Balance (Utang):</span>
+            <span id="resPrevBalance" class="text-red-400 font-semibold"></span>
+          </div>
+          <div class="flex justify-between border-b border-gray-700 pb-2 bg-white/5 p-2 rounded">
+            <span class="text-gray-200 font-bold">Total Amount Due:</span>
+            <span id="resTotalDue" class="font-bold text-emerald-400 text-base"></span>
           </div>
           <div class="flex justify-between items-center pt-1">
             <span class="text-gray-400">Status:</span>
@@ -234,6 +252,10 @@ app.get('/customer', (req, res) => {
             document.getElementById('resPlan').textContent = data.plan;
             document.getElementById('resDueDate').textContent = data.dueDate;
             document.getElementById('resAmount').textContent = '₱' + data.amount.toFixed(2);
+            document.getElementById('resPrevBalance').textContent = '₱' + (data.previousBalance || 0).toFixed(2);
+            
+            const totalDue = data.amount + (data.previousBalance || 0);
+            document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
             
             const statusEl = document.getElementById('resStatus');
             statusEl.textContent = data.status;
@@ -255,7 +277,7 @@ app.get('/customer', (req, res) => {
 
             if (data.status !== 'paid') {
               if (diffDays === 0) {
-                reminderBox.textContent = '🚨 BABALA: Ngayon na ang iyong Due Date! Mangyaring bayaran na ang iyong bill.';
+                reminderBox.textContent = '🚨 BABALA: Ngayon na ang iyong Due Date! Mangyaring bayaran na ang kabuuang halaga.';
                 reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
                 reminderBox.classList.remove('hidden');
               } else if (diffDays > 0 && diffDays <= 3) {
@@ -356,11 +378,11 @@ app.get('/dashboard', (req, res) => {
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <input type="text" id="newId" placeholder="ID (Auto)" class="border px-2 py-1 rounded text-sm w-24">
-            <input type="text" id="newName" placeholder="Pangalan" class="border px-2 py-1 rounded text-sm w-32">
-            <input type="text" id="newAddress" placeholder="Address" class="border px-2 py-1 rounded text-sm w-36">
-            <input type="text" id="newPlan" placeholder="Plan" class="border px-2 py-1 rounded text-sm w-28">
-            <input type="number" id="newAmount" placeholder="Halaga (₱)" class="border px-2 py-1 rounded text-sm w-24">
+            <input type="text" id="newId" placeholder="ID (Auto)" class="border px-2 py-1 rounded text-sm w-20">
+            <input type="text" id="newName" placeholder="Pangalan" class="border px-2 py-1 rounded text-sm w-28">
+            <input type="text" id="newAddress" placeholder="Address" class="border px-2 py-1 rounded text-sm w-28">
+            <input type="text" id="newPlan" placeholder="Plan" class="border px-2 py-1 rounded text-sm w-24">
+            <input type="number" id="newAmount" placeholder="Monthly (₱)" class="border px-2 py-1 rounded text-sm w-24">
             <button onclick="addSubscriber()" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 font-medium shadow">Add Customer</button>
           </div>
         </div>
@@ -375,7 +397,9 @@ app.get('/dashboard', (req, res) => {
                 <th class="p-3">Address</th>
                 <th class="p-3">Plan</th>
                 <th class="p-3">Due Date</th>
-                <th class="p-3">Amount</th>
+                <th class="p-3">Monthly</th>
+                <th class="p-3">Prev. Balance</th>
+                <th class="p-3">Total Due</th>
                 <th class="p-3">Status</th>
                 <th class="p-3">Actions</th>
               </tr>
@@ -409,8 +433,12 @@ app.get('/dashboard', (req, res) => {
               <input type="date" id="editDueDate" class="w-full border px-3 py-2 rounded text-sm">
             </div>
             <div>
-              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Amount (₱)</label>
+              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Monthly Amount (₱)</label>
               <input type="number" id="editAmount" class="w-full border px-3 py-2 rounded text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Previous Balance (₱)</label>
+              <input type="number" id="editPrevBalance" class="w-full border px-3 py-2 rounded text-sm">
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Status</label>
@@ -484,8 +512,8 @@ app.get('/dashboard', (req, res) => {
           const unpaidCount = data.filter(d => d.status === 'unpaid').length;
           const disconnectedCount = data.filter(d => d.status === 'disconnected').length;
           
-          const totalPaidAmount = data.filter(d => d.status === 'paid').reduce((sum, d) => sum + d.amount, 0);
-          const totalUnpaidAmount = data.filter(d => d.status === 'unpaid').reduce((sum, d) => sum + d.amount, 0);
+          const totalPaidAmount = data.filter(d => d.status === 'paid').reduce((sum, d) => sum + d.amount + (d.previousBalance || 0), 0);
+          const totalUnpaidAmount = data.filter(d => d.status === 'unpaid').reduce((sum, d) => sum + d.amount + (d.previousBalance || 0), 0);
 
           document.getElementById('summary').innerHTML = \`
             <div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 shadow-sm">
@@ -493,12 +521,12 @@ app.get('/dashboard', (req, res) => {
               <div class="text-xl font-bold">\${total}</div>
             </div>
             <div class="p-4 bg-gray-50 rounded border-l-4 border-green-500 shadow-sm">
-              <div class="text-gray-500 text-xs font-medium">Paid Accounts (₱\${totalPaidAmount.toFixed(2)})</div>
-              <div class="text-xl font-bold text-green-600">\${paidCount}</div>
+              <div class="text-gray-500 text-xs font-medium">Paid (Total Collected)</div>
+              <div class="text-xl font-bold text-green-600">₱\${totalPaidAmount.toFixed(2)}</div>
             </div>
             <div class="p-4 bg-gray-50 rounded border-l-4 border-red-500 shadow-sm">
-              <div class="text-gray-500 text-xs font-medium">Unpaid Accounts (₱\${totalUnpaidAmount.toFixed(2)})</div>
-              <div class="text-xl font-bold text-red-600">\${unpaidCount}</div>
+              <div class="text-gray-500 text-xs font-medium">Unpaid (Total Receivables)</div>
+              <div class="text-xl font-bold text-red-600">₱\${totalUnpaidAmount.toFixed(2)}</div>
             </div>
             <div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 shadow-sm">
               <div class="text-gray-500 text-xs font-medium">Disconnected Accounts</div>
@@ -519,7 +547,7 @@ app.get('/dashboard', (req, res) => {
           });
           
           if (filtered.length === 0) {
-            tbody.innerHTML = \`<tr><td colspan="8" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
+            tbody.innerHTML = \`<tr><td colspan="10" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
             return;
           }
 
@@ -532,13 +560,17 @@ app.get('/dashboard', (req, res) => {
             else if (item.status === 'unpaid') statusBadgeClass = 'bg-red-100 text-red-700';
             else if (item.status === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800';
 
+            const totalDue = item.amount + (item.previousBalance || 0);
+
             tr.innerHTML = \`
               <td class="p-3 text-gray-600 font-mono">\${item.id}</td>
               <td class="p-3 font-medium text-gray-800">\${item.name}</td>
               <td class="p-3 text-gray-600">\${item.address || ''}</td>
               <td class="p-3 text-gray-600">\${item.plan}</td>
               <td class="p-3 text-gray-600">\${item.dueDate}</td>
-              <td class="p-3 text-gray-800 font-semibold">₱\${item.amount.toFixed(2)}</td>
+              <td class="p-3 text-gray-800">₱\${item.amount.toFixed(2)}</td>
+              <td class="p-3 text-red-600 font-medium">₱\${(item.previousBalance || 0).toFixed(2)}</td>
+              <td class="p-3 text-emerald-600 font-bold">₱\${totalDue.toFixed(2)}</td>
               <td class="p-3">
                 <span class="px-2.5 py-1 text-xs rounded-full font-semibold \${statusBadgeClass}">
                   \${item.status.toUpperCase()}
@@ -546,7 +578,7 @@ app.get('/dashboard', (req, res) => {
               </td>
               <td class="p-3 flex items-center gap-2">
                 \${item.status === 'unpaid' ? \`<button onclick="markPaid(\${item.id})" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
-                <button onclick="openEditModal(\${item.id}, '\${item.name}', '\${item.address || ''}', '\${item.plan}', '\${item.dueDate}', \${item.amount}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
+                <button onclick="openEditModal(\${item.id}, '\${item.name}', '\${item.address || ''}', '\${item.plan}', '\${item.dueDate}', \${item.amount}, \${item.previousBalance || 0}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
                 <button onclick="deleteCustomer(\${item.id})" class="text-red-600 hover:underline font-medium text-xs">Delete</button>
               </td>
             \`;
@@ -572,7 +604,7 @@ app.get('/dashboard', (req, res) => {
           const amount = parseFloat(document.getElementById('newAmount').value);
           
           if (!name || !plan || isNaN(amount)) {
-            alert('Paki-punuan ang Pangalan, Plan, at Halaga nang tama.');
+            alert('Paki-punuan ang Pangalan, Plan, at Monthly Amount nang tama.');
             return;
           }
 
@@ -595,13 +627,14 @@ app.get('/dashboard', (req, res) => {
           }
         }
 
-        function openEditModal(id, name, address, plan, dueDate, amount, status) {
+        function openEditModal(id, name, address, plan, dueDate, amount, previousBalance, status) {
           document.getElementById('editId').value = id;
           document.getElementById('editName').value = name;
           document.getElementById('editAddress').value = address;
           document.getElementById('editPlan').value = plan;
           document.getElementById('editDueDate').value = dueDate;
           document.getElementById('editAmount').value = amount;
+          document.getElementById('editPrevBalance').value = previousBalance;
           document.getElementById('editStatus').value = status;
           document.getElementById('editModal').classList.remove('hidden');
         }
@@ -617,9 +650,10 @@ app.get('/dashboard', (req, res) => {
           const plan = document.getElementById('editPlan').value;
           const dueDate = document.getElementById('editDueDate').value;
           const amount = parseFloat(document.getElementById('editAmount').value);
+          const previousBalance = parseFloat(document.getElementById('editPrevBalance').value);
           const status = document.getElementById('editStatus').value;
 
-          if (!name || !plan || !dueDate || isNaN(amount)) {
+          if (!name || !plan || !dueDate || isNaN(amount) || isNaN(previousBalance)) {
             alert('Paki-punuan ang lahat ng fields nang tama.');
             return;
           }
@@ -627,7 +661,7 @@ app.get('/dashboard', (req, res) => {
           await fetch('/api/invoices/' + id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, address, plan, dueDate, amount, status })
+            body: JSON.stringify({ name, address, plan, dueDate, amount, previousBalance, status })
           });
 
           closeEditModal();
@@ -753,6 +787,7 @@ app.post('/api/invoices', (req, res) => {
     address: req.body.address || "",
     plan: req.body.plan,
     amount: req.body.amount,
+    previousBalance: 0.00,
     status: "unpaid",
     dueDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]
   };
@@ -766,6 +801,7 @@ app.put('/api/invoices/:id/pay', (req, res) => {
   const item = db.find(inv => inv.id == req.params.id);
   if (!item) return res.status(404).json({ error: "Hindi nahanap ang record" });
   item.status = "paid";
+  item.previousBalance = 0.00; // I-clear ang utang kapag binayaran
   saveDB(db);
   res.json(item);
 });
@@ -780,6 +816,7 @@ app.put('/api/invoices/:id', (req, res) => {
   item.plan = req.body.plan || item.plan;
   item.dueDate = req.body.dueDate || item.dueDate;
   item.amount = req.body.amount !== undefined ? req.body.amount : item.amount;
+  item.previousBalance = req.body.previousBalance !== undefined ? req.body.previousBalance : item.previousBalance;
   item.status = req.body.status || item.status;
   
   saveDB(db);
@@ -806,7 +843,7 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.properties.defaultRowHeight = 22;
 
-  sheet.mergeCells('A1:G1');
+  sheet.mergeCells('A1:I1');
   const titleCell = sheet.getCell('A1');
   titleCell.value = 'RTECH INTERNET BILLING & PAYMENT REPORT';
   titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFFFFF' } };
@@ -816,7 +853,7 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.addRow([]);
 
-  const headerRow = sheet.addRow(['Customer ID', 'Customer Name', 'Address', 'Plan', 'Due Date', 'Amount', 'Status']);
+  const headerRow = sheet.addRow(['Customer ID', 'Customer Name', 'Address', 'Plan', 'Due Date', 'Monthly', 'Prev. Balance', 'Total Due', 'Status']);
   headerRow.height = 25;
   headerRow.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } };
   
@@ -831,12 +868,13 @@ app.get('/api/export-excel', async (req, res) => {
     };
   });
 
-  let totalPaid = 0;
-  let totalUnpaid = 0;
+  let totalCollected = 0;
+  let totalReceivables = 0;
 
   db.forEach((item, index) => {
-    if (item.status === 'paid') totalPaid += item.amount;
-    else if (item.status === 'unpaid') totalUnpaid += item.amount;
+    const totalDue = item.amount + (item.previousBalance || 0);
+    if (item.status === 'paid') totalCollected += totalDue;
+    else if (item.status === 'unpaid') totalReceivables += totalDue;
 
     const row = sheet.addRow([
       item.id,
@@ -845,6 +883,8 @@ app.get('/api/export-excel', async (req, res) => {
       item.plan,
       item.dueDate,
       item.amount,
+      item.previousBalance || 0,
+      totalDue,
       item.status.toUpperCase()
     ]);
 
@@ -864,11 +904,11 @@ app.get('/api/export-excel', async (req, res) => {
 
       if (colNumber === 1) cell.alignment = { horizontal: 'center' };
       if (colNumber === 5) cell.alignment = { horizontal: 'center' };
-      if (colNumber === 6) {
+      if (colNumber >= 6 && colNumber <= 8) {
         cell.numFmt = '"₱"#,##0.00';
         cell.alignment = { horizontal: 'right' };
       }
-      if (colNumber === 7) {
+      if (colNumber === 9) {
         cell.alignment = { horizontal: 'center' };
         let colorCode = '047857';
         if (item.status === 'unpaid') colorCode = 'B91C1C';
@@ -880,17 +920,17 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.addRow([]);
 
-  const paidRow = sheet.addRow(['', '', '', '', 'TOTAL PAID', totalPaid, '']);
+  const paidRow = sheet.addRow(['', '', '', '', '', '', 'TOTAL COLLECTED', totalCollected, '']);
   paidRow.font = { name: 'Arial', size: 10, bold: true };
-  paidRow.getCell(5).alignment = { horizontal: 'right' };
-  paidRow.getCell(6).numFmt = '"₱"#,##0.00';
-  paidRow.getCell(6).font = { name: 'Arial', size: 10, bold: true, color: { argb: '047857' } };
+  paidRow.getCell(7).alignment = { horizontal: 'right' };
+  paidRow.getCell(8).numFmt = '"₱"#,##0.00';
+  paidRow.getCell(8).font = { name: 'Arial', size: 10, bold: true, color: { argb: '047857' } };
 
-  const unpaidRow = sheet.addRow(['', '', '', '', 'TOTAL UNPAID', totalUnpaid, '']);
+  const unpaidRow = sheet.addRow(['', '', '', '', '', '', 'TOTAL RECEIVABLES', totalReceivables, '']);
   unpaidRow.font = { name: 'Arial', size: 10, bold: true };
-  unpaidRow.getCell(5).alignment = { horizontal: 'right' };
-  unpaidRow.getCell(6).numFmt = '"₱"#,##0.00';
-  unpaidRow.getCell(6).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'B91C1C' } };
+  unpaidRow.getCell(7).alignment = { horizontal: 'right' };
+  unpaidRow.getCell(8).numFmt = '"₱"#,##0.00';
+  unpaidRow.getCell(8).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'B91C1C' } };
 
   sheet.columns.forEach(column => {
     let maxLength = 10;
