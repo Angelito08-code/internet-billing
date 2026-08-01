@@ -37,7 +37,7 @@ const saveDB = (data) => fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2)
 const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
 const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));
 
-// ================= LOGIN PAGE (UNANG LALABAS SA /) =================
+// ================= LOGIN PAGE (ADMIN) =================
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -69,9 +69,13 @@ app.get('/', (req, res) => {
             <input type="password" id="password" required class="w-full bg-black/40 border border-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-white">
           </div>
           <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition duration-200 shadow-lg text-sm">
-            Login
+            Login as Admin
           </button>
         </form>
+
+        <div class="mt-6 text-center border-t border-white/10 pt-4">
+          <a href="/customer" class="text-xs text-blue-400 hover:underline">🔍 Customer Portal (Tingnan ang Bill gamit ang ID)</a>
+        </div>
       </div>
 
       <script>
@@ -116,7 +120,124 @@ app.post('/api/login', (req, res) => {
   }
 });
 
-// ================= DASHBOARD (NASA /dashboard NA) =================
+// ================= CUSTOMER PORTAL (READ-ONLY) =================
+app.get('/customer', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="tl">
+    <head>
+      <meta charset="UTF-8">
+      <title>Customer Portal - RTECH Billing</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gradient-to-br from-blue-950 via-gray-900 to-black min-h-screen flex items-center justify-center p-4 font-sans">
+      <div class="bg-white/15 backdrop-blur-md border border-white/20 rounded-2xl p-8 max-w-lg w-full shadow-2xl text-white">
+        <div class="text-center mb-6">
+          <div class="bg-white p-2 rounded-full w-20 h-20 mx-auto mb-3 flex items-center justify-center border-2 border-blue-500 shadow-lg overflow-hidden">
+            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full">
+          </div>
+          <h1 class="text-xl font-bold tracking-wide">Customer Billing Portal</h1>
+          <p class="text-xs text-gray-300 mt-1">Ilagay ang iyong Customer ID para makita ang iyong account status.</p>
+        </div>
+
+        <div class="flex gap-2 mb-6">
+          <input type="text" id="customerId" placeholder="Halimbawa: 1 o CUST-01" class="w-full bg-black/40 border border-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-white">
+          <button onclick="checkBill()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition shadow-lg">Tingnan</button>
+        </div>
+
+        <div id="resultArea" class="hidden bg-black/40 border border-gray-700 rounded-xl p-5 space-y-3 text-sm">
+          <div class="flex justify-between border-b border-gray-700 pb-2">
+            <span class="text-gray-400">Customer ID:</span>
+            <span id="resId" class="font-mono font-bold text-blue-400"></span>
+          </div>
+          <div class="flex justify-between border-b border-gray-700 pb-2">
+            <span class="text-gray-400">Pangalan:</span>
+            <span id="resName" class="font-semibold"></span>
+          </div>
+          <div class="flex justify-between border-b border-gray-700 pb-2">
+            <span class="text-gray-400">Internet Plan:</span>
+            <span id="resPlan"></span>
+          </div>
+          <div class="flex justify-between border-b border-gray-700 pb-2">
+            <span class="text-gray-400">Due Date:</span>
+            <span id="resDueDate"></span>
+          </div>
+          <div class="flex justify-between border-b border-gray-700 pb-2">
+            <span class="text-gray-400">Halaga (Amount):</span>
+            <span id="resAmount" class="font-bold text-emerald-400"></span>
+          </div>
+          <div class="flex justify-between items-center pt-1">
+            <span class="text-gray-400">Status:</span>
+            <span id="resStatus" class="px-3 py-1 text-xs rounded-full font-bold uppercase"></span>
+          </div>
+        </div>
+
+        <div id="errorMsg" class="hidden bg-red-500/20 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center"></div>
+
+        <div class="mt-6 text-center border-t border-white/10 pt-4">
+          <a href="/" class="text-xs text-gray-300 hover:underline">← Bumalik sa Admin Login</a>
+        </div>
+      </div>
+
+      <script>
+        async function checkBill() {
+          const id = document.getElementById('customerId').value.trim();
+          const errDiv = document.getElementById('errorMsg');
+          const resultArea = document.getElementById('resultArea');
+
+          if (!id) {
+            errDiv.textContent = 'Mangyaring maglagay ng Customer ID.';
+            errDiv.classList.remove('hidden');
+            resultArea.classList.add('hidden');
+            return;
+          }
+
+          const res = await fetch('/api/customer/' + encodeURIComponent(id));
+          const data = await res.json();
+
+          if (res.ok) {
+            errDiv.classList.add('hidden');
+            document.getElementById('resId').textContent = data.id;
+            document.getElementById('resName').textContent = data.name;
+            document.getElementById('resPlan').textContent = data.plan;
+            document.getElementById('resDueDate').textContent = data.dueDate;
+            document.getElementById('resAmount').textContent = '₱' + data.amount.toFixed(2);
+            
+            const statusEl = document.getElementById('resStatus');
+            statusEl.textContent = data.status;
+            statusEl.className = 'px-3 py-1 text-xs rounded-full font-bold uppercase ';
+            if (data.status === 'paid') {
+              statusEl.className += 'bg-green-500/20 text-green-400 border border-green-500';
+            } else if (data.status === 'unpaid') {
+              statusEl.className += 'bg-red-500/20 text-red-400 border border-red-500';
+            } else {
+              statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
+            }
+
+            resultArea.classList.remove('hidden');
+          } else {
+            errDiv.textContent = data.error || 'Hindi nahanap ang Customer ID na ito.';
+            errDiv.classList.remove('hidden');
+            resultArea.classList.add('hidden');
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+// CUSTOMER LOOKUP API (Read-only)
+app.get('/api/customer/:id', (req, res) => {
+  const db = getDB();
+  const customer = db.find(inv => inv.id.toString() === req.params.id);
+  if (!customer) {
+    return res.status(404).json({ error: 'Walang nahanap na record para sa Customer ID na ito.' });
+  }
+  res.json(customer);
+});
+
+// ================= ADMIN DASHBOARD (NASA /dashboard NA) =================
 app.get('/dashboard', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -469,7 +590,7 @@ app.get('/dashboard', (req, res) => {
           admins.forEach(a => {
             const div = document.createElement('div');
             div.className = 'p-2 flex justify-between items-center text-xs';
-            div.innerHTML = \`<span>👤 \${a.username}</span> \${admins.length > 1 ? '<button onclick="deleteAdmin(' + a.id + ')" class="text-red-600 hover:underline">Delete</button>' : '<span class="text-gray-400 italic">Default</span>'}\`;
+            div.innerHTML = \`👤 \${a.username} \${admins.length > 1 ? '<button onclick="deleteAdmin(' + a.id + ')" class="text-red-600 hover:underline">Delete</button>' : '<span class="text-gray-400 italic">Default</span>'}\`;
             listDiv.appendChild(div);
           });
         }
