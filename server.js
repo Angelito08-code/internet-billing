@@ -2,10 +2,11 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const ExcelJS = require('exceljs');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-
+// ISANG BESES LANG I-DECLARE PARA IWAS SYNTAX ERROR
 const DB_FILE = path.join(__dirname, 'database.json');
 const ADMIN_FILE = path.join(__dirname, 'admins.json');
 
@@ -17,17 +18,20 @@ app.use(express.static(__dirname));
 if (!fs.existsSync(DB_FILE)) {
   const initialData = [];
   fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
-  console.log('📁 Gumawa ng bagong database.json dahil wala pa ito.');
+  console.log('📁 Gumawa ng bagong database.json dahil wala pa.');
 } else {
   console.log('✅ Nahanap ang umiiral na database.json. Hindi ito ginalaw.');
 }
 
-// Awtomatikong gagawa ng database para sa Admins kung wala pa (Default: admin / admin123)
+// Awtomatikong gagawa ng database para sa Admins kung wala pa
 if (!fs.existsSync(ADMIN_FILE)) {
   const initialAdmins = [
     { id: 1, username: "admin", password: "admin123" }
   ];
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
+  console.log('📁 Gumawa ng bagong admins.json dahil wala pa.');
+} else {
+  console.log('✅ Nahanap ang umiiral na admins.json. Hindi ito ginalaw.');
 }
 
 // Helper functions
@@ -195,6 +199,10 @@ app.get('/customer', (req, res) => {
             <span id="resPlan"></span>
           </div>
           <div class="flex justify-between border-b border-gray-700 pb-2">
+            <span class="text-gray-400">Assigned Collector:</span>
+            <span id="resCollector" class="font-semibold text-amber-400"></span>
+          </div>
+          <div class="flex justify-between border-b border-gray-700 pb-2">
             <span class="text-gray-400">Due Date:</span>
             <span id="resDueDate"></span>
           </div>
@@ -247,6 +255,7 @@ app.get('/customer', (req, res) => {
             document.getElementById('resName').textContent = data.name;
             document.getElementById('resAddress').textContent = data.address || 'Walang address';
             document.getElementById('resPlan').textContent = data.plan;
+            document.getElementById('resCollector').textContent = data.collector || 'N/A';
             document.getElementById('resDueDate').textContent = data.dueDate;
             document.getElementById('resAmount').textContent = '₱' + data.amount.toFixed(2);
             
@@ -417,7 +426,7 @@ app.get('/dashboard', (req, res) => {
               <option value="BATAL">BATAL</option>
             </select>
 
-            <!-- PLAN DROPDOWN (SPEED) -->
+            <!-- PLAN DROPDOWN -->
             <select id="newPlan" class="border px-2 py-1 rounded text-sm bg-white">
               <option value="">-- Plan --</option>
               <option value="50Mbps">50Mbps</option>
@@ -425,7 +434,13 @@ app.get('/dashboard', (req, res) => {
               <option value="100Mbps">100Mbps</option>
             </select>
 
-            <!-- MONTHLY DROPDOWN (AMOUNT) -->
+            <!-- COLLECTOR DROPDOWN -->
+            <select id="newCollector" class="border px-2 py-1 rounded text-sm bg-white font-semibold text-blue-900">
+              <option value="Jefford">Jefford (30th)</option>
+              <option value="Jake">Jake (15th)</option>
+            </select>
+
+            <!-- MONTHLY DROPDOWN -->
             <select id="newAmount" class="border px-2 py-1 rounded text-sm bg-white">
               <option value="">-- Monthly --</option>
               <option value="800">₱800</option>
@@ -449,6 +464,7 @@ app.get('/dashboard', (req, res) => {
                 <th class="p-3">Customer Name</th>
                 <th class="p-3">Address</th>
                 <th class="p-3">Plan</th>
+                <th class="p-3">Collector</th>
                 <th class="p-3">Due Date</th>
                 <th class="p-3">Monthly</th>
                 <th class="p-3">Prev. Balance</th>
@@ -496,29 +512,40 @@ app.get('/dashboard', (req, res) => {
                 <option value="BATAL">BATAL</option>
               </select>
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Plan</label>
-              <select id="editPlan" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
-                <option value="">-- Pumili ng Plan --</option>
-                <option value="50Mbps">50Mbps</option>
-                <option value="75Mbps">75Mbps</option>
-                <option value="100Mbps">100Mbps</option>
-              </select>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Plan</label>
+                <select id="editPlan" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
+                  <option value="">-- Plan --</option>
+                  <option value="50Mbps">50Mbps</option>
+                  <option value="75Mbps">75Mbps</option>
+                  <option value="100Mbps">100Mbps</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Collector</label>
+                <select id="editCollector" class="w-full border px-3 py-1.5 rounded text-sm bg-white font-semibold">
+                  <option value="Jefford">Jefford (30th)</option>
+                  <option value="Jake">Jake (15th)</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Monthly Amount</label>
-              <select id="editAmount" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
-                <option value="">-- Pumili ng Monthly --</option>
-                <option value="800">₱800</option>
-                <option value="1000">₱1000</option>
-                <option value="1200">₱1200</option>
-                <option value="1500">₱1500</option>
-                <option value="2000">₱2000</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date</label>
-              <input type="date" id="editDueDate" class="w-full border px-3 py-1.5 rounded text-sm">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Monthly Amount</label>
+                <select id="editAmount" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
+                  <option value="">-- Monthly --</option>
+                  <option value="800">₱800</option>
+                  <option value="1000">₱1000</option>
+                  <option value="1200">₱1200</option>
+                  <option value="1500">₱1500</option>
+                  <option value="2000">₱2000</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date</label>
+                <input type="date" id="editDueDate" class="w-full border px-3 py-1.5 rounded text-sm">
+              </div>
             </div>
             
             <div class="grid grid-cols-2 gap-2">
@@ -635,13 +662,14 @@ app.get('/dashboard', (req, res) => {
             const matchesStatus = (currentFilter === 'all' || item.status === currentFilter);
             const matchesSearch = item.name.toLowerCase().includes(searchQuery) || 
                                   (item.address && item.address.toLowerCase().includes(searchQuery)) ||
+                                  (item.collector && item.collector.toLowerCase().includes(searchQuery)) ||
                                   item.plan.toString().toLowerCase().includes(searchQuery) || 
                                   item.id.toString().includes(searchQuery);
             return matchesStatus && matchesSearch;
           });
           
           if (filtered.length === 0) {
-            tbody.innerHTML = \`<tr><td colspan="11" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
+            tbody.innerHTML = \`<tr><td colspan="12" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
             return;
           }
 
@@ -658,12 +686,14 @@ app.get('/dashboard', (req, res) => {
 
             const totalDue = item.amount + (item.previousBalance || 0);
             const prevMos = item.previousBalanceMonths || 0;
+            const collectorName = item.collector || 'Jefford';
 
             tr.innerHTML = \`
               <td class="p-3 text-gray-600 font-mono">\${item.id}</td>
               <td class="p-3 font-medium text-gray-800">\${item.name}</td>
               <td class="p-3 text-gray-600">\${item.address || ''}</td>
               <td class="p-3 text-gray-600">\${item.plan}</td>
+              <td class="p-3 font-semibold text-blue-900">\${collectorName}</td>
               <td class="p-3 text-gray-600">\${item.dueDate}</td>
               <td class="p-3 text-gray-800">₱\${item.amount.toFixed(2)}</td>
               <td class="p-3 text-red-600 font-medium">₱\${(item.previousBalance || 0).toFixed(2)}</td>
@@ -676,7 +706,7 @@ app.get('/dashboard', (req, res) => {
               </td>
               <td class="p-3 flex items-center gap-2">
                 \${item.status !== 'paid' ? \`<button onclick="markPaid('\${item.id}')" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
-                <button onclick="openEditModal('\${item.id}', '\${item.name}', '\${item.address || ''}', '\${item.plan}', '\${item.dueDate}', \${item.amount}, \${item.previousBalance || 0}, \${prevMos}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
+                <button onclick="openEditModal('\${item.id}', '\${item.name}', '\${item.address || ''}', '\${item.plan}', '\${collectorName}', '\${item.dueDate}', \${item.amount}, \${item.previousBalance || 0}, \${prevMos}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
                 <button onclick="deleteCustomer('\${item.id}')" class="text-red-600 hover:underline font-medium text-xs">Delete</button>
               </td>
             \`;
@@ -699,6 +729,7 @@ app.get('/dashboard', (req, res) => {
           const name = document.getElementById('newName').value;
           const address = document.getElementById('newAddress').value;
           const plan = document.getElementById('newPlan').value;
+          const collector = document.getElementById('newCollector').value;
           const amount = parseFloat(document.getElementById('newAmount').value);
           const dueDate = document.getElementById('newDueDate').value;
 
@@ -710,7 +741,7 @@ app.get('/dashboard', (req, res) => {
           const res = await fetch('/api/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: idInput, name, address, plan, amount, dueDate })
+            body: JSON.stringify({ id: idInput, name, address, plan, collector, amount, dueDate })
           });
 
           if (res.ok) {
@@ -727,11 +758,12 @@ app.get('/dashboard', (req, res) => {
           }
         }
 
-        function openEditModal(id, name, address, plan, dueDate, amount, previousBalance, previousBalanceMonths, status) {
+        function openEditModal(id, name, address, plan, collector, dueDate, amount, previousBalance, previousBalanceMonths, status) {
           document.getElementById('editId').value = id;
           document.getElementById('editName').value = name;
           document.getElementById('editAddress').value = address;
           document.getElementById('editPlan').value = plan;
+          document.getElementById('editCollector').value = collector || 'Jefford';
           document.getElementById('editDueDate').value = dueDate;
           document.getElementById('editAmount').value = amount;
           document.getElementById('editPrevBalance').value = previousBalance;
@@ -749,6 +781,7 @@ app.get('/dashboard', (req, res) => {
           const name = document.getElementById('editName').value;
           const address = document.getElementById('editAddress').value;
           const plan = document.getElementById('editPlan').value;
+          const collector = document.getElementById('editCollector').value;
           const dueDate = document.getElementById('editDueDate').value;
           const amount = parseFloat(document.getElementById('editAmount').value);
           const previousBalance = parseFloat(document.getElementById('editPrevBalance').value);
@@ -763,7 +796,7 @@ app.get('/dashboard', (req, res) => {
           await fetch('/api/invoices/' + id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, address, plan, dueDate, amount, previousBalance, previousBalanceMonths, status })
+            body: JSON.stringify({ name, address, plan, collector, dueDate, amount, previousBalance, previousBalanceMonths, status })
           });
 
           closeEditModal();
@@ -890,6 +923,7 @@ app.post('/api/invoices', (req, res) => {
     name: req.body.name,
     address: req.body.address || "",
     plan: req.body.plan,
+    collector: req.body.collector || "Jefford",
     amount: parseFloat(req.body.amount),
     previousBalance: 0.00,
     previousBalanceMonths: 0,
@@ -920,6 +954,7 @@ app.put('/api/invoices/:id', (req, res) => {
   item.name = req.body.name || item.name;
   item.address = req.body.address !== undefined ? req.body.address : item.address;
   item.plan = req.body.plan || item.plan;
+  item.collector = req.body.collector || item.collector || "Jefford";
   item.dueDate = req.body.dueDate || item.dueDate;
   item.amount = req.body.amount !== undefined ? parseFloat(req.body.amount) : item.amount;
   item.previousBalance = req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : (item.previousBalance || 0);
@@ -950,17 +985,17 @@ app.get('/api/export-excel', async (req, res) => {
 
   if (collector === 'jefford') {
     db = db.filter(item => {
-      if (!item.dueDate) return false;
-      const day = parseInt(item.dueDate.split('-')[2], 10);
-      return day === 30;
+      const isCollector = item.collector && item.collector.toLowerCase().includes('jefford');
+      const day = item.dueDate ? parseInt(item.dueDate.split('-')[2], 10) : 0;
+      return isCollector || day === 30;
     });
     reportTitle = 'COLLECTION REPORT - JEFFORD (EVERY 30TH OF THE MONTH)';
     exportFilename = 'jefford_collection_30th.xlsx';
   } else if (collector === 'jake') {
     db = db.filter(item => {
-      if (!item.dueDate) return false;
-      const day = parseInt(item.dueDate.split('-')[2], 10);
-      return day === 15;
+      const isCollector = item.collector && item.collector.toLowerCase().includes('jake');
+      const day = item.dueDate ? parseInt(item.dueDate.split('-')[2], 10) : 0;
+      return isCollector || day === 15;
     });
     reportTitle = 'COLLECTION REPORT - JAKE (EVERY 15TH OF THE MONTH)';
     exportFilename = 'jake_collection_15th.xlsx';
@@ -972,7 +1007,7 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.properties.defaultRowHeight = 22;
 
-  sheet.mergeCells('A1:J1');
+  sheet.mergeCells('A1:K1');
   const titleCell = sheet.getCell('A1');
   titleCell.value = reportTitle;
   titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFF' } };
@@ -982,7 +1017,7 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.addRow([]);
 
-  const headerRow = sheet.addRow(['Customer ID', 'Customer Name', 'Address', 'Plan', 'Due Date', 'Monthly', 'Prev. Balance', 'Prev. Mos', 'Total Due', 'Status']);
+  const headerRow = sheet.addRow(['Customer ID', 'Customer Name', 'Address', 'Plan', 'Collector', 'Due Date', 'Monthly', 'Prev. Balance', 'Prev. Mos', 'Total Due', 'Status']);
   headerRow.height = 25;
   headerRow.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } };
   
@@ -1010,6 +1045,7 @@ app.get('/api/export-excel', async (req, res) => {
       item.name,
       item.address || '',
       item.plan,
+      item.collector || 'Jefford',
       item.dueDate,
       item.amount,
       item.previousBalance || 0,
@@ -1032,12 +1068,12 @@ app.get('/api/export-excel', async (req, res) => {
         right: { style: 'thin', color: { argb: 'E5E7EB' } }
       };
 
-      if (colNumber === 1 || colNumber === 5 || colNumber === 8) cell.alignment = { horizontal: 'center' };
-      if (colNumber === 6 || colNumber === 7 || colNumber === 9) {
+      if (colNumber === 1 || colNumber === 5 || colNumber === 6 || colNumber === 9) cell.alignment = { horizontal: 'center' };
+      if (colNumber === 7 || colNumber === 8 || colNumber === 10) {
         cell.numFmt = '"₱"#,##0.00';
         cell.alignment = { horizontal: 'right' };
       }
-      if (colNumber === 10) {
+      if (colNumber === 11) {
         cell.alignment = { horizontal: 'center' };
         let colorCode = '047857';
         if (item.status === 'unpaid') colorCode = 'B91C1C';
@@ -1051,17 +1087,17 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.addRow([]);
 
-  const paidRow = sheet.addRow(['', '', '', '', '', '', '', 'TOTAL COLLECTED', totalCollected, '']);
+  const paidRow = sheet.addRow(['', '', '', '', '', '', '', '', 'TOTAL COLLECTED', totalCollected, '']);
   paidRow.font = { name: 'Arial', size: 10, bold: true };
-  paidRow.getCell(8).alignment = { horizontal: 'right' };
-  paidRow.getCell(9).numFmt = '"₱"#,##0.00';
-  paidRow.getCell(9).font = { name: 'Arial', size: 10, bold: true, color: { argb: '047857' } };
+  paidRow.getCell(9).alignment = { horizontal: 'right' };
+  paidRow.getCell(10).numFmt = '"₱"#,##0.00';
+  paidRow.getCell(10).font = { name: 'Arial', size: 10, bold: true, color: { argb: '047857' } };
 
-  const unpaidRow = sheet.addRow(['', '', '', '', '', '', '', 'TOTAL RECEIVABLES', totalReceivables, '']);
+  const unpaidRow = sheet.addRow(['', '', '', '', '', '', '', '', 'TOTAL RECEIVABLES', totalReceivables, '']);
   unpaidRow.font = { name: 'Arial', size: 10, bold: true };
-  unpaidRow.getCell(8).alignment = { horizontal: 'right' };
-  unpaidRow.getCell(9).numFmt = '"₱"#,##0.00';
-  unpaidRow.getCell(9).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'B91C1C' } };
+  unpaidRow.getCell(9).alignment = { horizontal: 'right' };
+  unpaidRow.getCell(10).numFmt = '"₱"#,##0.00';
+  unpaidRow.getCell(10).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'B91C1C' } };
 
   sheet.columns.forEach(column => {
     let maxLength = 10;
