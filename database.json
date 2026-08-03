@@ -1,3 +1,5 @@
-[
-
-]
+"dependencies": {
+  "@supabase/supabase-js": "^2.x.x",
+  "express": "...",
+  "exceljs": "..."
+}
