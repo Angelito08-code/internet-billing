@@ -15,8 +15,7 @@ app.use(express.static(__dirname));
 
 // Awtomatikong gagawa ng database para sa Invoices kung wala pa
 if (!fs.existsSync(DB_FILE)) {
-  const initialData = [];
-  fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
+  fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
   console.log('📁 Gumawa ng bagong database.json dahil wala pa.');
 } else {
   console.log('✅ Nahanap ang umiiral na database.json.');
@@ -24,9 +23,7 @@ if (!fs.existsSync(DB_FILE)) {
 
 // Awtomatikong gagawa ng database para sa Admins kung wala pa
 if (!fs.existsSync(ADMIN_FILE)) {
-  const initialAdmins = [
-    { id: 1, username: "admin", password: "admin123" }
-  ];
+  const initialAdmins = [{ id: 1, username: "admin", password: "admin123" }];
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
   console.log('📁 Gumawa ng bagong admins.json dahil wala pa.');
 } else {
@@ -35,42 +32,50 @@ if (!fs.existsSync(ADMIN_FILE)) {
 
 // Helper functions
 const getDB = () => {
-  let db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-  let updated = false;
-  const today = new Date();
+  try {
+    let db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    let updated = false;
+    const today = new Date();
 
-  db.forEach(item => {
-    const due = new Date(item.dueDate);
-    if (today.getFullYear() > due.getFullYear() || 
-       (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
-      
-      if (item.status === 'paid') {
-        item.previousBalance = 0;
-        item.previousBalanceMonths = 0;
-        item.status = 'unpaid';
-      } else if (item.status === 'unpaid' || item.status === 'reconnected') {
-        item.previousBalance = (item.previousBalance || 0) + item.amount;
-        item.previousBalanceMonths = (item.previousBalanceMonths || 0) + 1;
-        item.status = 'unpaid';
+    db.forEach(item => {
+      if (!item.dueDate) return;
+      const due = new Date(item.dueDate);
+      if (isNaN(due.getTime())) return;
+
+      if (today.getFullYear() > due.getFullYear() || 
+         (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
+        
+        if (item.status === 'paid') {
+          item.previousBalance = 0;
+          item.previousBalanceMonths = 0;
+          item.status = 'unpaid';
+        } else if (item.status === 'unpaid' || item.status === 'reconnected') {
+          item.previousBalance = (Number(item.previousBalance) || 0) + (Number(item.amount) || 0);
+          item.previousBalanceMonths = (Number(item.previousBalanceMonths) || 0) + 1;
+          item.status = 'unpaid';
+        }
+
+        due.setMonth(due.getMonth() + 1);
+        item.dueDate = due.toISOString().split('T')[0];
+        updated = true;
       }
+    });
 
-      due.setMonth(due.getMonth() + 1);
-      item.dueDate = due.toISOString().split('T')[0];
-      updated = true;
+    if (updated) {
+      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
     }
-  });
-
-  if (updated) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    return db;
+  } catch (err) {
+    console.error("Error sa pagbasa ng DB:", err);
+    return [];
   }
-  return db;
 };
 
 const saveDB = (data) => fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
 const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));
 
-// ================= LOGIN PAGE (ADMIN) =================
+// ================= LOGIN PAGE =================
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -118,19 +123,24 @@ app.get('/', (req, res) => {
           const password = document.getElementById('password').value;
           const errDiv = document.getElementById('errorMsg');
 
-          const res = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-          });
+          try {
+            const res = await fetch('/api/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username, password })
+            });
 
-          const data = await res.json();
-          if (res.ok) {
-            localStorage.setItem('isLoggedIn', 'true');
-            localStorage.setItem('adminUser', data.username);
-            window.location.href = '/dashboard';
-          } else {
-            errDiv.textContent = data.error || 'Mali ang username o password.';
+            const data = await res.json();
+            if (res.ok) {
+              localStorage.setItem('isLoggedIn', 'true');
+              localStorage.setItem('adminUser', data.username);
+              window.location.href = '/dashboard';
+            } else {
+              errDiv.textContent = data.error || 'Mali ang username o password.';
+              errDiv.classList.remove('hidden');
+            }
+          } catch (err) {
+            errDiv.textContent = 'Hindi makakonekta sa server.';
             errDiv.classList.remove('hidden');
           }
         }
@@ -245,74 +255,79 @@ app.get('/customer', (req, res) => {
             return;
           }
 
-          const res = await fetch('/api/customer/' + encodeURIComponent(id));
-          const data = await res.json();
+          try {
+            const res = await fetch('/api/customer/' + encodeURIComponent(id));
+            const data = await res.json();
 
-          if (res.ok) {
-            errDiv.classList.add('hidden');
-            document.getElementById('resId').textContent = data.id;
-            document.getElementById('resName').textContent = data.name;
-            document.getElementById('resAddress').textContent = data.address || 'Walang address';
-            document.getElementById('resPlan').textContent = data.plan;
-            document.getElementById('resCollector').textContent = data.collector || 'N/A';
-            document.getElementById('resDueDate').textContent = data.dueDate;
-            document.getElementById('resAmount').textContent = '₱' + data.amount.toFixed(2);
-            
-            const prevMos = data.previousBalanceMonths || 0;
-            document.getElementById('resPrevBalance').textContent = '₱' + (data.previousBalance || 0).toFixed(2) + ' (' + prevMos + ' buwan)';
-            
-            const totalDue = data.amount + (data.previousBalance || 0);
-            document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
-            
-            const statusEl = document.getElementById('resStatus');
-            statusEl.textContent = data.status === 'pullout' ? 'PULL OUT' : data.status;
-            statusEl.className = 'px-3 py-1 text-xs rounded-full font-bold uppercase ';
-            
-            if (data.status === 'paid') {
-              statusEl.className += 'bg-green-500/20 text-green-400 border border-green-500';
-            } else if (data.status === 'unpaid') {
-              statusEl.className += 'bg-red-500/20 text-red-400 border border-red-500';
-            } else if (data.status === 'reconnected') {
-              statusEl.className += 'bg-blue-500/20 text-blue-400 border border-blue-500';
-            } else if (data.status === 'pullout') {
-              statusEl.className += 'bg-purple-500/20 text-purple-400 border border-purple-500';
-            } else {
-              statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
-            }
+            if (res.ok) {
+              errDiv.classList.add('hidden');
+              document.getElementById('resId').textContent = data.id;
+              document.getElementById('resName').textContent = data.name;
+              document.getElementById('resAddress').textContent = data.address || 'Walang address';
+              document.getElementById('resPlan').textContent = data.plan;
+              document.getElementById('resCollector').textContent = data.collector || 'N/A';
+              document.getElementById('resDueDate').textContent = data.dueDate;
+              document.getElementById('resAmount').textContent = '₱' + (Number(data.amount) || 0).toFixed(2);
+              
+              const prevMos = data.previousBalanceMonths || 0;
+              document.getElementById('resPrevBalance').textContent = '₱' + (Number(data.previousBalance) || 0).toFixed(2) + ' (' + prevMos + ' buwan)';
+              
+              const totalDue = (Number(data.amount) || 0) + (Number(data.previousBalance) || 0);
+              document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
+              
+              const statusEl = document.getElementById('resStatus');
+              statusEl.textContent = data.status === 'pullout' ? 'PULL OUT' : data.status;
+              statusEl.className = 'px-3 py-1 text-xs rounded-full font-bold uppercase ';
+              
+              if (data.status === 'paid') {
+                statusEl.className += 'bg-green-500/20 text-green-400 border border-green-500';
+              } else if (data.status === 'unpaid') {
+                statusEl.className += 'bg-red-500/20 text-red-400 border border-red-500';
+              } else if (data.status === 'reconnected') {
+                statusEl.className += 'bg-blue-500/20 text-blue-400 border border-blue-500';
+              } else if (data.status === 'pullout') {
+                statusEl.className += 'bg-purple-500/20 text-purple-400 border border-purple-500';
+              } else {
+                statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
+              }
 
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const due = new Date(data.dueDate);
-            due.setHours(0, 0, 0, 0);
-            const diffTime = due - today;
-            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const due = new Date(data.dueDate);
+              due.setHours(0, 0, 0, 0);
+              const diffTime = due - today;
+              const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-            if (data.status !== 'paid') {
-              if (diffDays === 0) {
-                reminderBox.textContent = '🚨 BABALA: Ngayon na ang iyong Due Date! Mangyaring bayaran na ang kabuuang halaga.';
-                reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
-                reminderBox.classList.remove('hidden');
-              } else if (diffDays > 0 && diffDays <= 3) {
-                reminderBox.textContent = \`⚠️ Paalala: Mayroon nalang \${diffDays} araw bago ang iyong due date (\${data.dueDate}).\`;
-                reminderBox.className = 'bg-yellow-500/20 border border-yellow-500 text-yellow-200 text-xs p-3 rounded mb-4 text-center font-medium shadow';
-                reminderBox.classList.remove('hidden');
-              } else if (diffDays < 0) {
-                reminderBox.textContent = \`❌ OVERDUE: Lumipas na ang iyong due date noong \${data.dueDate}.\`;
-                reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
-                reminderBox.classList.remove('hidden');
+              if (data.status !== 'paid') {
+                if (diffDays === 0) {
+                  reminderBox.textContent = '🚨 BABALA: Ngayon na ang iyong Due Date! Mangyaring bayaran na ang kabuuang halaga.';
+                  reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
+                  reminderBox.classList.remove('hidden');
+                } else if (diffDays > 0 && diffDays <= 3) {
+                  reminderBox.textContent = '⚠️ Paalala: Mayroon nalang ' + diffDays + ' araw bago ang iyong due date (' + data.dueDate + ').';
+                  reminderBox.className = 'bg-yellow-500/20 border border-yellow-500 text-yellow-200 text-xs p-3 rounded mb-4 text-center font-medium shadow';
+                  reminderBox.classList.remove('hidden');
+                } else if (diffDays < 0) {
+                  reminderBox.textContent = '❌ OVERDUE: Lumipas na ang iyong due date noong ' + data.dueDate + '.';
+                  reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
+                  reminderBox.classList.remove('hidden');
+                } else {
+                  reminderBox.classList.add('hidden');
+                }
               } else {
                 reminderBox.classList.add('hidden');
               }
+
+              resultArea.classList.remove('hidden');
             } else {
+              errDiv.textContent = data.error || 'Hindi nahanap ang Customer ID na ito.';
+              errDiv.classList.remove('hidden');
+              resultArea.classList.add('hidden');
               reminderBox.classList.add('hidden');
             }
-
-            resultArea.classList.remove('hidden');
-          } else {
-            errDiv.textContent = data.error || 'Hindi nahanap ang Customer ID na ito.';
+          } catch (err) {
+            errDiv.textContent = 'May problemang naganap sa koneksyon.';
             errDiv.classList.remove('hidden');
-            resultArea.classList.add('hidden');
-            reminderBox.classList.add('hidden');
           }
         }
       </script>
@@ -359,7 +374,6 @@ app.get('/dashboard', (req, res) => {
             </div>
           </div>
 
-          <!-- EXPORT BUTTONS -->
           <div class="flex items-center gap-2 flex-wrap">
             <a href="/api/export-excel?collector=jefford" class="bg-emerald-600 text-white px-3 py-1.5 rounded text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1 no-underline shadow">
               📊 Export Jefford
@@ -599,9 +613,9 @@ app.get('/dashboard', (req, res) => {
       </div>
 
       <script>
-        let currentFilter = 'all';
-        let searchQuery = '';
-        let allInvoices = []; // Global storage para sa invoices
+        var currentFilter = 'all';
+        var searchQuery = '';
+        var allInvoices = [];
 
         function logout() {
           localStorage.removeItem('isLoggedIn');
@@ -625,98 +639,100 @@ app.get('/dashboard', (req, res) => {
             const res = await fetch('/api/invoices');
             allInvoices = await res.json();
             
-            const total = allInvoices.length;
-            const paidCount = allInvoices.filter(d => d.status === 'paid').length;
-            const unpaidCount = allInvoices.filter(d => d.status === 'unpaid').length;
-            const disconnectedCount = allInvoices.filter(d => d.status === 'disconnected').length;
+            var total = allInvoices.length;
+            var paidCount = allInvoices.filter(function(d) { return d.status === 'paid'; }).length;
+            var unpaidCount = allInvoices.filter(function(d) { return d.status === 'unpaid'; }).length;
+            var disconnectedCount = allInvoices.filter(function(d) { return d.status === 'disconnected'; }).length;
             
-            const totalPaidAmount = allInvoices.filter(d => d.status === 'paid').reduce((sum, d) => sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0), 0);
-            const totalUnpaidAmount = allInvoices.filter(d => d.status === 'unpaid').reduce((sum, d) => sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0), 0);
+            var totalPaidAmount = allInvoices.filter(function(d) { return d.status === 'paid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
+            var totalUnpaidAmount = allInvoices.filter(function(d) { return d.status === 'unpaid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
 
-            document.getElementById('summary').innerHTML = \`
-              <div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 shadow-sm">
-                <div class="text-gray-500 text-xs font-medium">Total Subscribers</div>
-                <div class="text-xl font-bold">\${total}</div>
-              </div>
-              <div class="p-4 bg-gray-50 rounded border-l-4 border-green-500 shadow-sm">
-                <div class="text-gray-500 text-xs font-medium">Paid (Total Collected)</div>
-                <div class="text-xl font-bold text-green-600">₱\${totalPaidAmount.toFixed(2)}</div>
-              </div>
-              <div class="p-4 bg-gray-50 rounded border-l-4 border-red-500 shadow-sm">
-                <div class="text-gray-500 text-xs font-medium">Unpaid (Total Receivables)</div>
-                <div class="text-xl font-bold text-red-600">₱\${totalUnpaidAmount.toFixed(2)}</div>
-              </div>
-              <div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 shadow-sm">
-                <div class="text-gray-500 text-xs font-medium">Disconnected Accounts</div>
-                <div class="text-xl font-bold text-yellow-600">\${disconnectedCount}</div>
-              </div>
-            \`;
+            document.getElementById('summary').innerHTML = 
+              '<div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 shadow-sm">' +
+                '<div class="text-gray-500 text-xs font-medium">Total Subscribers</div>' +
+                '<div class="text-xl font-bold">' + total + '</div>' +
+              '</div>' +
+              '<div class="p-4 bg-gray-50 rounded border-l-4 border-green-500 shadow-sm">' +
+                '<div class="text-gray-500 text-xs font-medium">Paid (Total Collected)</div>' +
+                '<div class="text-xl font-bold text-green-600">₱' + totalPaidAmount.toFixed(2) + '</div>' +
+              '</div>' +
+              '<div class="p-4 bg-gray-50 rounded border-l-4 border-red-500 shadow-sm">' +
+                '<div class="text-gray-500 text-xs font-medium">Unpaid (Total Receivables)</div>' +
+                '<div class="text-xl font-bold text-red-600">₱' + totalUnpaidAmount.toFixed(2) + '</div>' +
+              '</div>' +
+              '<div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 shadow-sm">' +
+                '<div class="text-gray-500 text-xs font-medium">Disconnected Accounts</div>' +
+                '<div class="text-xl font-bold text-yellow-600">' + disconnectedCount + '</div>' +
+              '</div>';
 
-            const tbody = document.getElementById('tableBody');
+            var tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
             
-            const filtered = allInvoices.filter(item => {
-              const matchesStatus = (currentFilter === 'all' || item.status === currentFilter);
-              const nameStr = (item.name || '').toLowerCase();
-              const addrStr = (item.address || '').toLowerCase();
-              const collStr = (item.collector || '').toLowerCase();
-              const planStr = (item.plan || '').toString().toLowerCase();
-              const idStr = (item.id || '').toString().toLowerCase();
+            var filtered = allInvoices.filter(function(item) {
+              var matchesStatus = (currentFilter === 'all' || item.status === currentFilter);
+              var nameStr = (item.name || '').toLowerCase();
+              var addrStr = (item.address || '').toLowerCase();
+              var collStr = (item.collector || '').toLowerCase();
+              var planStr = (item.plan || '').toString().toLowerCase();
+              var idStr = (item.id || '').toString().toLowerCase();
 
-              const matchesSearch = !searchQuery || 
-                                    nameStr.includes(searchQuery) || 
-                                    addrStr.includes(searchQuery) ||
-                                    collStr.includes(searchQuery) ||
-                                    planStr.includes(searchQuery) || 
-                                    idStr.includes(searchQuery);
+              var matchesSearch = !searchQuery || 
+                                  nameStr.includes(searchQuery) || 
+                                  addrStr.includes(searchQuery) ||
+                                  collStr.includes(searchQuery) ||
+                                  planStr.includes(searchQuery) || 
+                                  idStr.includes(searchQuery);
 
               return matchesStatus && matchesSearch;
             });
             
             if (filtered.length === 0) {
-              tbody.innerHTML = \`<tr><td colspan="12" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
+              tbody.innerHTML = '<tr><td colspan="12" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>';
               return;
             }
 
-            filtered.forEach(item => {
-              const tr = document.createElement('tr');
+            filtered.forEach(function(item) {
+              var tr = document.createElement('tr');
               tr.className = 'border-b hover:bg-gray-50';
               
-              let statusBadgeClass = 'bg-gray-100 text-gray-700';
+              var statusBadgeClass = 'bg-gray-100 text-gray-700';
               if (item.status === 'paid') statusBadgeClass = 'bg-green-100 text-green-700';
               else if (item.status === 'unpaid') statusBadgeClass = 'bg-red-100 text-red-700';
               else if (item.status === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800';
               else if (item.status === 'reconnected') statusBadgeClass = 'bg-blue-100 text-blue-700';
               else if (item.status === 'pullout') statusBadgeClass = 'bg-purple-100 text-purple-800';
 
-              const amount = Number(item.amount) || 0;
-              const prevBal = Number(item.previousBalance) || 0;
-              const totalDue = amount + prevBal;
-              const prevMos = item.previousBalanceMonths || 0;
-              const collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
+              var amount = Number(item.amount) || 0;
+              var prevBal = Number(item.previousBalance) || 0;
+              var totalDue = amount + prevBal;
+              var prevMos = item.previousBalanceMonths || 0;
+              var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
 
-              tr.innerHTML = \`
-                <td class="p-3 text-gray-600 font-mono">\${item.id}</td>
-                <td class="p-3 font-medium text-gray-800">\${item.name || ''}</td>
-                <td class="p-3 text-gray-600">\${item.address || ''}</td>
-                <td class="p-3 text-gray-600">\${item.plan || ''}</td>
-                <td class="p-3 font-semibold text-blue-900">\${collectorName}</td>
-                <td class="p-3 text-gray-600">\${item.dueDate || ''}</td>
-                <td class="p-3 text-gray-800">₱\${amount.toFixed(2)}</td>
-                <td class="p-3 text-red-600 font-medium">₱\${prevBal.toFixed(2)}</td>
-                <td class="p-3 text-gray-600 font-medium">\${prevMos} mos</td>
-                <td class="p-3 text-emerald-600 font-bold">₱\${totalDue.toFixed(2)}</td>
-                <td class="p-3">
-                  <span class="px-2.5 py-1 text-xs rounded-full font-semibold \${statusBadgeClass}">
-                    \${item.status === 'pullout' ? 'PULL OUT' : (item.status || '').toUpperCase()}
-                  </span>
-                </td>
-                <td class="p-3 flex items-center gap-2">
-                  \${item.status !== 'paid' ? \`<button onclick="markPaid('\${item.id}')" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
-                  <button onclick="openEditModal('\${item.id}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
-                  <button onclick="deleteCustomer('\${item.id}')" class="text-red-600 hover:underline font-medium text-xs">Delete</button>
-                </td>
-              \`;
+              var actionButtons = '';
+              if (item.status !== 'paid') {
+                actionButtons += '<button onclick="markPaid(\'' + item.id + '\')" class="text-green-600 hover:underline font-medium text-xs mr-2">Mark Paid</button>';
+              }
+              actionButtons += '<button onclick="openEditModal(\'' + item.id + '\')" class="text-blue-600 hover:underline font-medium text-xs mr-2">Edit</button>';
+              actionButtons += '<button onclick="deleteCustomer(\'' + item.id + '\')" class="text-red-600 hover:underline font-medium text-xs">Delete</button>';
+
+              tr.innerHTML = 
+                '<td class="p-3 text-gray-600 font-mono">' + item.id + '</td>' +
+                '<td class="p-3 font-medium text-gray-800">' + (item.name || '') + '</td>' +
+                '<td class="p-3 text-gray-600">' + (item.address || '') + '</td>' +
+                '<td class="p-3 text-gray-600">' + (item.plan || '') + '</td>' +
+                '<td class="p-3 font-semibold text-blue-900">' + collectorName + '</td>' +
+                '<td class="p-3 text-gray-600">' + (item.dueDate || '') + '</td>' +
+                '<td class="p-3 text-gray-800">₱' + amount.toFixed(2) + '</td>' +
+                '<td class="p-3 text-red-600 font-medium">₱' + prevBal.toFixed(2) + '</td>' +
+                '<td class="p-3 text-gray-600 font-medium">' + prevMos + ' mos</td>' +
+                '<td class="p-3 text-emerald-600 font-bold">₱' + totalDue.toFixed(2) + '</td>' +
+                '<td class="p-3">' +
+                  '<span class="px-2.5 py-1 text-xs rounded-full font-semibold ' + statusBadgeClass + '">' +
+                    (item.status === 'pullout' ? 'PULL OUT' : (item.status || '').toUpperCase()) +
+                  '</span>' +
+                '</td>' +
+                '<td class="p-3 flex items-center">' + actionButtons + '</td>';
+
               tbody.appendChild(tr);
             });
           } catch (err) {
@@ -730,67 +746,75 @@ app.get('/dashboard', (req, res) => {
         }
 
         async function markPaid(id) {
-          await fetch('/api/invoices/' + id + '/pay', { method: 'PUT' });
-          loadData();
+          try {
+            await fetch('/api/invoices/' + id + '/pay', { method: 'PUT' });
+            loadData();
+          } catch (err) {
+            alert('Hindi ma-update ang payment status.');
+          }
         }
 
         async function addSubscriber() {
-          const idInput = document.getElementById('newId').value.trim();
-          const name = document.getElementById('newName').value.trim();
-          const address = document.getElementById('newAddress').value;
-          const plan = document.getElementById('newPlan').value;
-          const collector = document.getElementById('newCollector').value;
-          const rawAmount = document.getElementById('newAmount').value;
-          const amount = parseFloat(rawAmount);
-          const dueDate = document.getElementById('newDueDate').value;
+          try {
+            var idInput = document.getElementById('newId').value.trim();
+            var name = document.getElementById('newName').value.trim();
+            var address = document.getElementById('newAddress').value;
+            var plan = document.getElementById('newPlan').value;
+            var collector = document.getElementById('newCollector').value;
+            var rawAmount = document.getElementById('newAmount').value;
+            var amount = parseFloat(rawAmount);
+            var dueDate = document.getElementById('newDueDate').value;
 
-          if (!name) {
-            alert('Mangyaring ilagay ang Pangalan ng Customer.');
-            return;
-          }
-          if (!address) {
-            alert('Mangyaring pumili ng Address.');
-            return;
-          }
-          if (!plan) {
-            alert('Mangyaring pumili ng Internet Plan.');
-            return;
-          }
-          if (isNaN(amount)) {
-            alert('Mangyaring pumili ng Monthly Amount.');
-            return;
-          }
+            if (!name) {
+              alert('Mangyaring ilagay ang Pangalan ng Customer.');
+              return;
+            }
+            if (!address) {
+              alert('Mangyaring pumili ng Address.');
+              return;
+            }
+            if (!plan) {
+              alert('Mangyaring pumili ng Internet Plan.');
+              return;
+            }
+            if (isNaN(amount)) {
+              alert('Mangyaring pumili ng Monthly Amount.');
+              return;
+            }
 
-          const res = await fetch('/api/invoices', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: idInput, name, address, plan, collector, amount, dueDate })
-          });
+            var res = await fetch('/api/invoices', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: idInput, name: name, address: address, plan: plan, collector: collector, amount: amount, dueDate: dueDate })
+            });
 
-          if (res.ok) {
-            // Linisin ang mga input
-            document.getElementById('newId').value = '';
-            document.getElementById('newName').value = '';
-            document.getElementById('newAddress').value = '';
-            document.getElementById('newPlan').value = '';
-            document.getElementById('newAmount').value = '';
-            document.getElementById('newDueDate').value = '';
+            var data = await res.json();
 
-            // I-reset ang filter at search para agad lumabas ang bagong customer
-            currentFilter = 'all';
-            searchQuery = '';
-            document.getElementById('searchInput').value = '';
+            if (res.ok) {
+              document.getElementById('newId').value = '';
+              document.getElementById('newName').value = '';
+              document.getElementById('newAddress').value = '';
+              document.getElementById('newPlan').value = '';
+              document.getElementById('newAmount').value = '';
+              document.getElementById('newDueDate').value = '';
 
-            await loadData();
-            alert('✅ Tagumpay na naidagdag ang bagong customer!');
-          } else {
-            const err = await res.json();
-            alert(err.error || 'May problemang naganap sa pag-save.');
+              currentFilter = 'all';
+              searchQuery = '';
+              document.getElementById('searchInput').value = '';
+
+              await loadData();
+              alert('✅ Tagumpay na naidagdag si ' + name + '!');
+            } else {
+              alert('❌ Error: ' + (data.error || 'May problemang naganap sa pag-save.'));
+            }
+          } catch (err) {
+            console.error("Add Subscriber Error:", err);
+            alert('❌ Error sa koneksyon: ' + err.message);
           }
         }
 
         function openEditModal(id) {
-          const item = allInvoices.find(inv => inv.id.toString() === id.toString());
+          var item = allInvoices.find(function(inv) { return inv.id.toString() === id.toString(); });
           if (!item) return;
 
           document.getElementById('editId').value = item.id;
@@ -811,36 +835,44 @@ app.get('/dashboard', (req, res) => {
         }
 
         async function saveEditedCustomer() {
-          const id = document.getElementById('editId').value;
-          const name = document.getElementById('editName').value;
-          const address = document.getElementById('editAddress').value;
-          const plan = document.getElementById('editPlan').value;
-          const collector = document.getElementById('editCollector').value;
-          const dueDate = document.getElementById('editDueDate').value;
-          const amount = parseFloat(document.getElementById('editAmount').value);
-          const previousBalance = parseFloat(document.getElementById('editPrevBalance').value);
-          const previousBalanceMonths = parseInt(document.getElementById('editPrevBalanceMonths').value, 10);
-          const status = document.getElementById('editStatus').value;
+          try {
+            var id = document.getElementById('editId').value;
+            var name = document.getElementById('editName').value;
+            var address = document.getElementById('editAddress').value;
+            var plan = document.getElementById('editPlan').value;
+            var collector = document.getElementById('editCollector').value;
+            var dueDate = document.getElementById('editDueDate').value;
+            var amount = parseFloat(document.getElementById('editAmount').value);
+            var previousBalance = parseFloat(document.getElementById('editPrevBalance').value);
+            var previousBalanceMonths = parseInt(document.getElementById('editPrevBalanceMonths').value, 10);
+            var status = document.getElementById('editStatus').value;
 
-          if (!name || !address || !plan || !dueDate || isNaN(amount) || isNaN(previousBalance)) {
-            alert('Paki-punuan ang lahat ng fields nang tama.');
-            return;
+            if (!name || !address || !plan || !dueDate || isNaN(amount) || isNaN(previousBalance)) {
+              alert('Paki-punuan ang lahat ng fields nang tama.');
+              return;
+            }
+
+            await fetch('/api/invoices/' + id, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: name, address: address, plan: plan, collector: collector, dueDate: dueDate, amount: amount, previousBalance: previousBalance, previousBalanceMonths: previousBalanceMonths, status: status })
+            });
+
+            closeEditModal();
+            loadData();
+          } catch (err) {
+            alert('Hindi na-save ang mga pagbabago.');
           }
-
-          await fetch('/api/invoices/' + id, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, address, plan, collector, dueDate, amount, previousBalance, previousBalanceMonths, status })
-          });
-
-          closeEditModal();
-          loadData();
         }
 
         async function deleteCustomer(id) {
           if (confirm('Sigurado ka bang gusto mong burahin ang customer na ito?')) {
-            await fetch('/api/invoices/' + id, { method: 'DELETE' });
-            loadData();
+            try {
+              await fetch('/api/invoices/' + id, { method: 'DELETE' });
+              loadData();
+            } catch (err) {
+              alert('Hindi nabura ang customer.');
+            }
           }
         }
 
@@ -854,45 +886,57 @@ app.get('/dashboard', (req, res) => {
         }
 
         async function loadAdminsList() {
-          const res = await fetch('/api/admins');
-          const admins = await res.json();
-          const listDiv = document.getElementById('adminList');
-          listDiv.innerHTML = '';
-          admins.forEach(a => {
-            const div = document.createElement('div');
-            div.className = 'p-2 flex justify-between items-center text-xs';
-            div.innerHTML = \`<span>👤 \${a.username}</span> \${admins.length > 1 ? '<button onclick="deleteAdmin(' + a.id + ')" class="text-red-600 hover:underline">Delete</button>' : '<span class="text-gray-400 italic">Default</span>'}\`;
-            listDiv.appendChild(div);
-          });
+          try {
+            var res = await fetch('/api/admins');
+            var admins = await res.json();
+            var listDiv = document.getElementById('adminList');
+            listDiv.innerHTML = '';
+            admins.forEach(function(a) {
+              var div = document.createElement('div');
+              div.className = 'p-2 flex justify-between items-center text-xs';
+              div.innerHTML = '<span>👤 ' + a.username + '</span>' + (admins.length > 1 ? '<button onclick="deleteAdmin(' + a.id + ')" class="text-red-600 hover:underline">Delete</button>' : '<span class="text-gray-400 italic">Default</span>');
+              listDiv.appendChild(div);
+            });
+          } catch (err) {
+            console.error(err);
+          }
         }
 
         async function createAdmin() {
-          const username = document.getElementById('newAdminUser').value;
-          const password = document.getElementById('newAdminPass').value;
+          var username = document.getElementById('newAdminUser').value;
+          var password = document.getElementById('newAdminPass').value;
           if (!username || !password) {
             alert('Ilagay ang username at password.');
             return;
           }
-          const res = await fetch('/api/admins', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-          });
-          if (res.ok) {
-            document.getElementById('newAdminUser').value = '';
-            document.getElementById('newAdminPass').value = '';
-            loadAdminsList();
-            alert('Tagumpay na nakagawa ng bagong admin!');
-          } else {
-            const err = await res.json();
-            alert(err.error || 'May problema.');
+          try {
+            var res = await fetch('/api/admins', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username: username, password: password })
+            });
+            if (res.ok) {
+              document.getElementById('newAdminUser').value = '';
+              document.getElementById('newAdminPass').value = '';
+              loadAdminsList();
+              alert('Tagumpay na nakagawa ng bagong admin!');
+            } else {
+              var err = await res.json();
+              alert(err.error || 'May problema.');
+            }
+          } catch (err) {
+            alert('Error sa pag-add ng admin.');
           }
         }
 
         async function deleteAdmin(id) {
           if (confirm('Siguradong gusto mong burahin ang admin na ito?')) {
-            await fetch('/api/admins/' + id, { method: 'DELETE' });
-            loadAdminsList();
+            try {
+              await fetch('/api/admins/' + id, { method: 'DELETE' });
+              loadAdminsList();
+            } catch (err) {
+              alert('Hindi nabura ang admin.');
+            }
           }
         }
 
@@ -940,51 +984,64 @@ app.get('/api/invoices', (req, res) => {
 });
 
 app.post('/api/invoices', (req, res) => {
-  const db = getDB();
-  const customId = req.body.id ? req.body.id.trim() : null;
+  try {
+    const db = getDB();
+    const customId = req.body.id ? String(req.body.id).trim() : null;
 
-  if (customId && db.some(inv => inv.id.toString() === customId)) {
-    return res.status(400).json({ error: "Mayroon nang ganyang Customer ID." });
-  }
-
-  const generatedId = db.length > 0 ? (typeof db[db.length - 1].id === 'number' ? db[db.length - 1].id + 1 : db.length + 1) : 1;
-  const finalId = customId ? (isNaN(customId) ? customId : Number(customId)) : generatedId;
-
-  // Auto Due Date Calculation
-  let finalDueDate = req.body.dueDate;
-  if (!finalDueDate) {
-    const today = new Date();
-    let year = today.getFullYear();
-    let month = today.getMonth();
-    const targetDay = 30;
-
-    if (today.getDate() > targetDay) {
-      month += 1;
-      if (month > 11) {
-        month = 0;
-        year += 1;
-      }
+    if (customId && db.some(inv => String(inv.id).toLowerCase() === customId.toLowerCase())) {
+      return res.status(400).json({ error: "Mayroon nang ganyang Customer ID." });
     }
-    const calculatedDate = new Date(year, month, targetDay);
-    finalDueDate = calculatedDate.toISOString().split('T')[0];
+
+    // Siguradong nakukuha ang pinakamataas na numeric ID
+    let maxNumericId = 0;
+    db.forEach(item => {
+      const num = parseInt(item.id, 10);
+      if (!isNaN(num) && num > maxNumericId) {
+        maxNumericId = num;
+      }
+    });
+
+    const finalId = customId ? (isNaN(customId) ? customId : Number(customId)) : (maxNumericId + 1);
+
+    // Auto Due Date Calculation
+    let finalDueDate = req.body.dueDate;
+    if (!finalDueDate) {
+      const today = new Date();
+      let year = today.getFullYear();
+      let month = today.getMonth();
+      const targetDay = 30;
+
+      if (today.getDate() > targetDay) {
+        month += 1;
+        if (month > 11) {
+          month = 0;
+          year += 1;
+        }
+      }
+      const calculatedDate = new Date(year, month, targetDay);
+      finalDueDate = calculatedDate.toISOString().split('T')[0];
+    }
+
+    const newItem = {
+      id: finalId,
+      name: req.body.name ? req.body.name.trim() : "",
+      address: req.body.address || "",
+      plan: req.body.plan || "",
+      collector: req.body.collector || "Jefford",
+      amount: parseFloat(req.body.amount) || 0,
+      previousBalance: 0.00,
+      previousBalanceMonths: 0,
+      status: "unpaid",
+      dueDate: finalDueDate
+    };
+
+    db.push(newItem);
+    saveDB(db);
+    res.json(newItem);
+  } catch (err) {
+    console.error("Error sa pag-save ng customer:", err);
+    res.status(500).json({ error: "Hindi ma-save ang customer: " + err.message });
   }
-
-  const newItem = {
-    id: finalId,
-    name: req.body.name,
-    address: req.body.address || "",
-    plan: req.body.plan,
-    collector: req.body.collector || "Jefford",
-    amount: parseFloat(req.body.amount),
-    previousBalance: 0.00,
-    previousBalanceMonths: 0,
-    status: "unpaid",
-    dueDate: finalDueDate
-  };
-
-  db.push(newItem);
-  saveDB(db);
-  res.json(newItem);
 });
 
 app.put('/api/invoices/:id/pay', (req, res) => {
