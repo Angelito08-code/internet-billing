@@ -14,11 +14,7 @@ app.use(express.static(__dirname));
 
 // Awtomatikong gagawa ng database para sa Invoices kung wala pa (May kasamang previousBalance)
 if (!fs.existsSync(DB_FILE)) {
-  const initialData = [
-    { id: 1, name: "Alice Smith", address: "Poblacion, Abulug", plan: "50 Mbps", amount: 1200.00, previousBalance: 0.00, status: "paid", dueDate: "2026-07-05" },
-    { id: 2, name: "Bob Jones", address: "Centro, Abulug", plan: "100 Mbps", amount: 1800.00, previousBalance: 500.00, status: "unpaid", dueDate: "2026-07-10" },
-    { id: 3, name: "Charlie Brown", address: "Lucban, Abulug", plan: "50 Mbps", amount: 1200.00, previousBalance: 1200.00, status: "disconnected", dueDate: "2026-06-12" }
-  ];
+  const initialData = [];
   fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
 }
 
