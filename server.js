@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
-// Awtomatikong gagawa ng database para sa Invoices kung wala pa (May kasamang previousBalance)
+// Awtomatikong gagawa ng database para sa Invoices kung wala pa
 if (!fs.existsSync(DB_FILE)) {
   const initialData = [];
   fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
@@ -26,7 +26,7 @@ if (!fs.existsSync(ADMIN_FILE)) {
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
 }
 
-// Helper functions na may Automatic Monthly Rollover at Previous Balance Accumulation
+// Helper functions
 const getDB = () => {
   let db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
   let updated = false;
@@ -34,21 +34,17 @@ const getDB = () => {
 
   db.forEach(item => {
     const due = new Date(item.dueDate);
-    // Kung lumipas na ang buwan/taon ng due date
     if (today.getFullYear() > due.getFullYear() || 
        (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
       
       if (item.status === 'paid') {
-        // Kung bayad na noong nakaraang buwan, i-reset ang previousBalance at gawing unpaid para sa bagong buwan
         item.previousBalance = 0;
         item.status = 'unpaid';
       } else {
-        // Kung unpaid o disconnected at lumipas ang buwan, idagdag ang kasalukuyang amount sa previousBalance
         item.previousBalance = (item.previousBalance || 0) + item.amount;
         item.status = 'unpaid';
       }
 
-      // Uusad ang due date ng 1 buwan pasulong
       due.setMonth(due.getMonth() + 1);
       item.dueDate = due.toISOString().split('T')[0];
       updated = true;
@@ -62,7 +58,6 @@ const getDB = () => {
 };
 
 const saveDB = (data) => fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-
 const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
 const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));
 
@@ -373,12 +368,50 @@ app.get('/dashboard', (req, res) => {
             </div>
           </div>
 
-          <div class="flex flex-wrap gap-2">
+          <!-- Add Customer Form -->
+          <div class="flex flex-wrap gap-2 items-center">
             <input type="text" id="newId" placeholder="ID (Auto)" class="border px-2 py-1 rounded text-sm w-20">
             <input type="text" id="newName" placeholder="Pangalan" class="border px-2 py-1 rounded text-sm w-28">
-            <input type="text" id="newAddress" placeholder="Address" class="border px-2 py-1 rounded text-sm w-28">
-            <input type="text" id="newPlan" placeholder="Plan" class="border px-2 py-1 rounded text-sm w-24">
-            <input type="number" id="newAmount" placeholder="Monthly (₱)" class="border px-2 py-1 rounded text-sm w-24">
+            
+            <!-- ADDRESS DROPDOWN -->
+            <select id="newAddress" class="border px-2 py-1 rounded text-sm bg-white">
+              <option value="">-- Address --</option>
+              <option value="SAN AGUSTIN">SAN AGUSTIN</option>
+              <option value="LIBERTAD">LIBERTAD</option>
+              <option value="BANGUIAN">BANGUIAN</option>
+              <option value="DUGO">DUGO</option>
+              <option value="ALINUNU">ALINUNU</option>
+              <option value="SAN ISIDRO">SAN ISIDRO</option>
+              <option value="AYAGA">AYAGA</option>
+              <option value="STA ROSA">STA ROSA</option>
+              <option value="MAQUIRIT">MAQUIRIT</option>
+              <option value="PINARON">PINARON</option>
+              <option value="LUCBAN">LUCBAN</option>
+              <option value="GUIDDAM">GUIDDAM</option>
+              <option value="BANNAG">BANNAG</option>
+              <option value="MACUGAY">MACUGAY</option>
+              <option value="BUNNONG">BUNNONG</option>
+              <option value="BATAL">BATAL</option>
+            </select>
+
+            <!-- PLAN DROPDOWN (SPEED) -->
+            <select id="newPlan" class="border px-2 py-1 rounded text-sm bg-white">
+              <option value="">-- Plan --</option>
+              <option value="50Mbps">50Mbps</option>
+              <option value="75Mbps">75Mbps</option>
+              <option value="100Mbps">100Mbps</option>
+            </select>
+
+            <!-- MONTHLY DROPDOWN (AMOUNT) -->
+            <select id="newAmount" class="border px-2 py-1 rounded text-sm bg-white">
+              <option value="">-- Monthly --</option>
+              <option value="800">₱800</option>
+              <option value="1000">₱1000</option>
+              <option value="1200">₱1200</option>
+              <option value="1500">₱1500</option>
+              <option value="2000">₱2000</option>
+            </select>
+
             <input type="date" id="newDueDate" class="border px-2 py-1 rounded text-sm w-36">
             <button onclick="addSubscriber()" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 font-medium shadow">Add Customer</button>
           </div>
@@ -419,19 +452,49 @@ app.get('/dashboard', (req, res) => {
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Address</label>
-              <input type="text" id="editAddress" class="w-full border px-3 py-2 rounded text-sm">
+              <select id="editAddress" class="w-full border px-3 py-2 rounded text-sm bg-white">
+                <option value="">-- Pumili ng Address --</option>
+                <option value="SAN AGUSTIN">SAN AGUSTIN</option>
+                <option value="LIBERTAD">LIBERTAD</option>
+                <option value="BANGUIAN">BANGUIAN</option>
+                <option value="DUGO">DUGO</option>
+                <option value="ALINUNU">ALINUNU</option>
+                <option value="SAN ISIDRO">SAN ISIDRO</option>
+                <option value="AYAGA">AYAGA</option>
+                <option value="STA ROSA">STA ROSA</option>
+                <option value="MAQUIRIT">MAQUIRIT</option>
+                <option value="PINARON">PINARON</option>
+                <option value="LUCBAN">LUCBAN</option>
+                <option value="GUIDDAM">GUIDDAM</option>
+                <option value="BANNAG">BANNAG</option>
+                <option value="MACUGAY">MACUGAY</option>
+                <option value="BUNNONG">BUNNONG</option>
+                <option value="BATAL">BATAL</option>
+              </select>
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Plan</label>
-              <input type="text" id="editPlan" class="w-full border px-3 py-2 rounded text-sm">
+              <select id="editPlan" class="w-full border px-3 py-2 rounded text-sm bg-white">
+                <option value="">-- Pumili ng Plan --</option>
+                <option value="50Mbps">50Mbps</option>
+                <option value="75Mbps">75Mbps</option>
+                <option value="100Mbps">100Mbps</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Monthly Amount</label>
+              <select id="editAmount" class="w-full border px-3 py-2 rounded text-sm bg-white">
+                <option value="">-- Pumili ng Monthly --</option>
+                <option value="800">₱800</option>
+                <option value="1000">₱1000</option>
+                <option value="1200">₱1200</option>
+                <option value="1500">₱1500</option>
+                <option value="2000">₱2000</option>
+              </select>
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date</label>
               <input type="date" id="editDueDate" class="w-full border px-3 py-2 rounded text-sm">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Monthly Amount (₱)</label>
-              <input type="number" id="editAmount" class="w-full border px-3 py-2 rounded text-sm">
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Previous Balance (₱)</label>
@@ -538,7 +601,7 @@ app.get('/dashboard', (req, res) => {
             const matchesStatus = (currentFilter === 'all' || item.status === currentFilter);
             const matchesSearch = item.name.toLowerCase().includes(searchQuery) || 
                                   (item.address && item.address.toLowerCase().includes(searchQuery)) ||
-                                  item.plan.toLowerCase().includes(searchQuery) || 
+                                  item.plan.toString().toLowerCase().includes(searchQuery) || 
                                   item.id.toString().includes(searchQuery);
             return matchesStatus && matchesSearch;
           });
@@ -574,9 +637,9 @@ app.get('/dashboard', (req, res) => {
                 </span>
               </td>
               <td class="p-3 flex items-center gap-2">
-                \${item.status === 'unpaid' ? \`<button onclick="markPaid(\${item.id})" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
-                <button onclick="openEditModal(\${item.id}, '\${item.name}', '\${item.address || ''}', '\${item.plan}', '\${item.dueDate}', \${item.amount}, \${item.previousBalance || 0}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
-                <button onclick="deleteCustomer(\${item.id})" class="text-red-600 hover:underline font-medium text-xs">Delete</button>
+                \${item.status === 'unpaid' ? \`<button onclick="markPaid('\${item.id}')" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
+                <button onclick="openEditModal('\${item.id}', '\${item.name}', '\${item.address || ''}', '\${item.plan}', '\${item.dueDate}', \${item.amount}, \${item.previousBalance || 0}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
+                <button onclick="deleteCustomer('\${item.id}')" class="text-red-600 hover:underline font-medium text-xs">Delete</button>
               </td>
             \`;
             tbody.appendChild(tr);
@@ -601,8 +664,8 @@ app.get('/dashboard', (req, res) => {
           const amount = parseFloat(document.getElementById('newAmount').value);
           const dueDate = document.getElementById('newDueDate').value;
 
-          if (!name || !plan || isNaN(amount)) {
-            alert('Paki-punuan ang Pangalan, Plan, at Monthly Amount nang tama.');
+          if (!name || !address || !plan || isNaN(amount)) {
+            alert('Paki-punuan ang Pangalan, Address, Plan, at Monthly Amount nang tama.');
             return;
           }
 
@@ -652,7 +715,7 @@ app.get('/dashboard', (req, res) => {
           const previousBalance = parseFloat(document.getElementById('editPrevBalance').value);
           const status = document.getElementById('editStatus').value;
 
-          if (!name || !plan || !dueDate || isNaN(amount) || isNaN(previousBalance)) {
+          if (!name || !address || !plan || !dueDate || isNaN(amount) || isNaN(previousBalance)) {
             alert('Paki-punuan ang lahat ng fields nang tama.');
             return;
           }
@@ -780,7 +843,6 @@ app.post('/api/invoices', (req, res) => {
   const generatedId = db.length > 0 ? (typeof db[db.length - 1].id === 'number' ? db[db.length - 1].id + 1 : db.length + 1) : 1;
   const finalId = customId ? (isNaN(customId) ? customId : Number(customId)) : generatedId;
 
-  // Default value kung hindi nag-set ng custom date sa form
   const defaultDueDate = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
 
   const newItem = {
@@ -788,7 +850,7 @@ app.post('/api/invoices', (req, res) => {
     name: req.body.name,
     address: req.body.address || "",
     plan: req.body.plan,
-    amount: req.body.amount,
+    amount: parseFloat(req.body.amount),
     previousBalance: 0.00,
     status: "unpaid",
     dueDate: req.body.dueDate || defaultDueDate
@@ -803,7 +865,7 @@ app.put('/api/invoices/:id/pay', (req, res) => {
   const item = db.find(inv => inv.id == req.params.id);
   if (!item) return res.status(404).json({ error: "Hindi nahanap ang record" });
   item.status = "paid";
-  item.previousBalance = 0.00; // I-clear ang utang kapag binayaran
+  item.previousBalance = 0.00;
   saveDB(db);
   res.json(item);
 });
@@ -817,8 +879,8 @@ app.put('/api/invoices/:id', (req, res) => {
   item.address = req.body.address !== undefined ? req.body.address : item.address;
   item.plan = req.body.plan || item.plan;
   item.dueDate = req.body.dueDate || item.dueDate;
-  item.amount = req.body.amount !== undefined ? req.body.amount : item.amount;
-  item.previousBalance = req.body.previousBalance !== undefined ? req.body.previousBalance : item.previousBalance;
+  item.amount = req.body.amount !== undefined ? parseFloat(req.body.amount) : item.amount;
+  item.previousBalance = req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : item.previousBalance;
   item.status = req.body.status || item.status;
   
   saveDB(db);
