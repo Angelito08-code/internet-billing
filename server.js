@@ -386,9 +386,9 @@ app.get('/dashboard', (req, res) => {
             </div>
             
             <div class="flex items-center gap-1 ml-2">
-              <input type="text" id="searchInput" placeholder="Search customer..." class="border px-3 py-1 rounded text-sm focus:outline-none focus:border-blue-500" onkeypress="handleSearchKey(event)">
-              <button onclick="searchCustomer()" class="bg-gray-700 text-white px-3 py-1 rounded text-sm hover:bg-gray-800 font-medium shadow">🔍 Search</button>
-            </div>
+  <input type="text" id="searchInput" placeholder="Search customer..." class="border px-3 py-1 rounded text-sm focus:outline-none focus:border-blue-500" oninput="searchCustomer()" onkeypress="handleSearchKey(event)">
+  <button onclick="searchCustomer()" class="bg-gray-700 text-white px-3 py-1 rounded text-sm hover:bg-gray-800 font-medium shadow">🔍 Search</button>
+</div>
           </div>
 
           <!-- Add Customer Form -->
