@@ -337,14 +337,22 @@ app.get('/dashboard', (req, res) => {
               <p class="text-xs text-gray-500">RTECH Computer Center Management</p>
             </div>
           </div>
-          <div class="flex items-center gap-3">
-            <a href="/api/export-excel" class="bg-emerald-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-emerald-700 flex items-center gap-1 no-underline shadow">
-              📊 Export to Excel
+
+          <!-- EXPORT BUTTONS & CONTROL SECTION -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <a href="/api/export-excel?collector=jefford" class="bg-emerald-600 text-white px-3 py-2 rounded text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1 no-underline shadow">
+              📊 Export Jefford (30th)
             </a>
-            <button onclick="openAdminModal()" class="bg-gray-800 text-white px-3 py-2 rounded text-sm font-medium hover:bg-gray-900 shadow">
+            <a href="/api/export-excel?collector=jake" class="bg-indigo-600 text-white px-3 py-2 rounded text-xs font-semibold hover:bg-indigo-700 flex items-center gap-1 no-underline shadow">
+              📊 Export Jake (15th)
+            </a>
+            <a href="/api/export-excel" class="bg-gray-600 text-white px-2.5 py-2 rounded text-xs font-medium hover:bg-gray-700 flex items-center gap-1 no-underline shadow">
+              📊 Export All
+            </a>
+            <button onclick="openAdminModal()" class="bg-gray-800 text-white px-3 py-2 rounded text-xs font-medium hover:bg-gray-900 shadow">
               ⚙️ Manage Admins
             </button>
-            <button onclick="logout()" class="bg-red-600 text-white px-3 py-2 rounded text-sm font-medium hover:bg-red-700 shadow">
+            <button onclick="logout()" class="bg-red-600 text-white px-3 py-2 rounded text-xs font-medium hover:bg-red-700 shadow">
               Logout
             </button>
           </div>
@@ -897,10 +905,33 @@ app.delete('/api/invoices/:id', (req, res) => {
   res.json(deleted[0]);
 });
 
-// ================= EXCEL EXPORT ROUTE =================
+// ================= EXCEL EXPORT ROUTE (WITH COLLECTOR FILTER) =================
 app.get('/api/export-excel', async (req, res) => {
-  const db = getDB();
-  
+  let db = getDB();
+  const collector = req.query.collector; // 'jefford', 'jake', o wala
+
+  let reportTitle = 'RTECH INTERNET BILLING & PAYMENT REPORT';
+  let exportFilename = 'rtech_billing_report.xlsx';
+
+  // Filtering batay sa Due Date at Collector
+  if (collector === 'jefford') {
+    db = db.filter(item => {
+      if (!item.dueDate) return false;
+      const day = parseInt(item.dueDate.split('-')[2], 10);
+      return day === 30; // Collector ng every 30th
+    });
+    reportTitle = 'COLLECTION REPORT - JEFFORD (EVERY 30TH OF THE MONTH)';
+    exportFilename = 'jefford_collection_30th.xlsx';
+  } else if (collector === 'jake') {
+    db = db.filter(item => {
+      if (!item.dueDate) return false;
+      const day = parseInt(item.dueDate.split('-')[2], 10);
+      return day === 15; // Collector ng every 15th
+    });
+    reportTitle = 'COLLECTION REPORT - JAKE (EVERY 15TH OF THE MONTH)';
+    exportFilename = 'jake_collection_15th.xlsx';
+  }
+
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'RTECH Computer Center';
   const sheet = workbook.addWorksheet('Billing Report');
@@ -909,8 +940,8 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.mergeCells('A1:I1');
   const titleCell = sheet.getCell('A1');
-  titleCell.value = 'RTECH INTERNET BILLING & PAYMENT REPORT';
-  titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFFFFF' } };
+  titleCell.value = reportTitle;
+  titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFF' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
   titleCell.alignment = { horizontal: 'center', vertical: 'center' };
   sheet.getRow(1).height = 35;
@@ -1008,7 +1039,7 @@ app.get('/api/export-excel', async (req, res) => {
   });
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', 'attachment; filename=rtech_billing_report.xlsx');
+  res.setHeader('Content-Disposition', `attachment; filename=${exportFilename}`);
 
   await workbook.xlsx.write(res);
   res.end();
