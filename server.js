@@ -6,7 +6,6 @@ const ExcelJS = require('exceljs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ISANG BESES LANG I-DECLARE PARA IWAS SYNTAX ERROR
 const DB_FILE = path.join(__dirname, 'database.json');
 const ADMIN_FILE = path.join(__dirname, 'admins.json');
 
@@ -20,7 +19,7 @@ if (!fs.existsSync(DB_FILE)) {
   fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
   console.log('📁 Gumawa ng bagong database.json dahil wala pa.');
 } else {
-  console.log('✅ Nahanap ang umiiral na database.json. Hindi ito ginalaw.');
+  console.log('✅ Nahanap ang umiiral na database.json.');
 }
 
 // Awtomatikong gagawa ng database para sa Admins kung wala pa
@@ -31,7 +30,7 @@ if (!fs.existsSync(ADMIN_FILE)) {
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
   console.log('📁 Gumawa ng bagong admins.json dahil wala pa.');
 } else {
-  console.log('✅ Nahanap ang umiiral na admins.json. Hindi ito ginalaw.');
+  console.log('✅ Nahanap ang umiiral na admins.json.');
 }
 
 // Helper functions
@@ -360,21 +359,21 @@ app.get('/dashboard', (req, res) => {
             </div>
           </div>
 
-          <!-- EXPORT BUTTONS & CONTROL SECTION -->
+          <!-- PINAGSAMANG EXPORT BUTTONS -->
           <div class="flex items-center gap-2 flex-wrap">
-            <a href="/api/export-excel?collector=jefford" class="bg-emerald-600 text-white px-3 py-2 rounded text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1 no-underline shadow">
-              📊 Export Jefford (30th)
+            <a href="/api/export-excel?collector=jefford" class="bg-emerald-600 text-white px-3 py-1.5 rounded text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1 no-underline shadow">
+              📊 Export Jefford
             </a>
-            <a href="/api/export-excel?collector=jake" class="bg-indigo-600 text-white px-3 py-2 rounded text-xs font-semibold hover:bg-indigo-700 flex items-center gap-1 no-underline shadow">
-              📊 Export Jake (15th)
+            <a href="/api/export-excel?collector=jake" class="bg-indigo-600 text-white px-3 py-1.5 rounded text-xs font-semibold hover:bg-indigo-700 flex items-center gap-1 no-underline shadow">
+              📊 Export Jake
             </a>
-            <a href="/api/export-excel" class="bg-gray-600 text-white px-2.5 py-2 rounded text-xs font-medium hover:bg-gray-700 flex items-center gap-1 no-underline shadow">
+            <a href="/api/export-excel" class="bg-gray-700 text-white px-3 py-1.5 rounded text-xs font-semibold hover:bg-gray-800 flex items-center gap-1 no-underline shadow">
               📊 Export All
             </a>
-            <button onclick="openAdminModal()" class="bg-gray-800 text-white px-3 py-2 rounded text-xs font-medium hover:bg-gray-900 shadow">
-              ⚙️ Manage Admins
+            <button onclick="openAdminModal()" class="bg-gray-800 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-gray-900 shadow">
+              ⚙️ Admins
             </button>
-            <button onclick="logout()" class="bg-red-600 text-white px-3 py-2 rounded text-xs font-medium hover:bg-red-700 shadow">
+            <button onclick="logout()" class="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-red-700 shadow">
               Logout
             </button>
           </div>
@@ -405,7 +404,6 @@ app.get('/dashboard', (req, res) => {
             <input type="text" id="newId" placeholder="ID (Auto)" class="border px-2 py-1 rounded text-sm w-20">
             <input type="text" id="newName" placeholder="Pangalan" class="border px-2 py-1 rounded text-sm w-28">
             
-            <!-- ADDRESS DROPDOWN -->
             <select id="newAddress" class="border px-2 py-1 rounded text-sm bg-white">
               <option value="">-- Address --</option>
               <option value="SAN AGUSTIN">SAN AGUSTIN</option>
@@ -426,7 +424,6 @@ app.get('/dashboard', (req, res) => {
               <option value="BATAL">BATAL</option>
             </select>
 
-            <!-- PLAN DROPDOWN -->
             <select id="newPlan" class="border px-2 py-1 rounded text-sm bg-white">
               <option value="">-- Plan --</option>
               <option value="50Mbps">50Mbps</option>
@@ -434,13 +431,12 @@ app.get('/dashboard', (req, res) => {
               <option value="100Mbps">100Mbps</option>
             </select>
 
-            <!-- COLLECTOR DROPDOWN -->
+            <!-- PINAGSAMANG COLLECTOR OPTIONS -->
             <select id="newCollector" class="border px-2 py-1 rounded text-sm bg-white font-semibold text-blue-900">
-              <option value="Jefford">Jefford (30th)</option>
-              <option value="Jake">Jake (15th)</option>
+              <option value="Jefford">Jefford</option>
+              <option value="Jake">Jake</option>
             </select>
 
-            <!-- MONTHLY DROPDOWN -->
             <select id="newAmount" class="border px-2 py-1 rounded text-sm bg-white">
               <option value="">-- Monthly --</option>
               <option value="800">₱800</option>
@@ -451,7 +447,7 @@ app.get('/dashboard', (req, res) => {
             </select>
 
             <input type="date" id="newDueDate" class="border px-2 py-1 rounded text-sm w-36">
-            <button onclick="addSubscriber()" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 font-medium shadow">Add Customer</button>
+            <button onclick="addSubscriber()" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 font-medium shadow">+ Add Customer</button>
           </div>
         </div>
 
@@ -525,8 +521,8 @@ app.get('/dashboard', (req, res) => {
               <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Collector</label>
                 <select id="editCollector" class="w-full border px-3 py-1.5 rounded text-sm bg-white font-semibold">
-                  <option value="Jefford">Jefford (30th)</option>
-                  <option value="Jake">Jake (15th)</option>
+                  <option value="Jefford">Jefford</option>
+                  <option value="Jake">Jake</option>
                 </select>
               </div>
             </div>
@@ -686,7 +682,7 @@ app.get('/dashboard', (req, res) => {
 
             const totalDue = item.amount + (item.previousBalance || 0);
             const prevMos = item.previousBalanceMonths || 0;
-            const collectorName = item.collector || 'Jefford';
+            const collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
 
             tr.innerHTML = \`
               <td class="p-3 text-gray-600 font-mono">\${item.id}</td>
@@ -754,7 +750,7 @@ app.get('/dashboard', (req, res) => {
             loadData();
           } else {
             const err = await res.json();
-            alert(err.error || 'May problemang naganap.');
+            alert(err.error || 'May problemang naganap sa pag-save.');
           }
         }
 
@@ -763,7 +759,7 @@ app.get('/dashboard', (req, res) => {
           document.getElementById('editName').value = name;
           document.getElementById('editAddress').value = address;
           document.getElementById('editPlan').value = plan;
-          document.getElementById('editCollector').value = collector || 'Jefford';
+          document.getElementById('editCollector').value = collector ? collector.split(' ')[0] : 'Jefford';
           document.getElementById('editDueDate').value = dueDate;
           document.getElementById('editAmount').value = amount;
           document.getElementById('editPrevBalance').value = previousBalance;
@@ -916,7 +912,24 @@ app.post('/api/invoices', (req, res) => {
   const generatedId = db.length > 0 ? (typeof db[db.length - 1].id === 'number' ? db[db.length - 1].id + 1 : db.length + 1) : 1;
   const finalId = customId ? (isNaN(customId) ? customId : Number(customId)) : generatedId;
 
-  const defaultDueDate = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+  // Auto Due Date Calculation kung walang napiling due date
+  let finalDueDate = req.body.dueDate;
+  if (!finalDueDate) {
+    const today = new Date();
+    let year = today.getFullYear();
+    let month = today.getMonth();
+    const targetDay = 30; // Default to 30th unless specified
+
+    if (today.getDate() > targetDay) {
+      month += 1;
+      if (month > 11) {
+        month = 0;
+        year += 1;
+      }
+    }
+    const calculatedDate = new Date(year, month, targetDay);
+    finalDueDate = calculatedDate.toISOString().split('T')[0];
+  }
 
   const newItem = {
     id: finalId,
@@ -928,8 +941,9 @@ app.post('/api/invoices', (req, res) => {
     previousBalance: 0.00,
     previousBalanceMonths: 0,
     status: "unpaid",
-    dueDate: req.body.dueDate || defaultDueDate
+    dueDate: finalDueDate
   };
+
   db.push(newItem);
   saveDB(db);
   res.json(newItem);
@@ -975,30 +989,23 @@ app.delete('/api/invoices/:id', (req, res) => {
   res.json(deleted[0]);
 });
 
-// ================= EXCEL EXPORT ROUTE =================
+// ================= COMBINED EXCEL EXPORT ROUTE =================
 app.get('/api/export-excel', async (req, res) => {
   let db = getDB();
-  const collector = req.query.collector;
+  const collectorQuery = (req.query.collector || '').toLowerCase();
 
   let reportTitle = 'RTECH INTERNET BILLING & PAYMENT REPORT';
   let exportFilename = 'rtech_billing_report.xlsx';
 
-  if (collector === 'jefford') {
-    db = db.filter(item => {
-      const isCollector = item.collector && item.collector.toLowerCase().includes('jefford');
-      const day = item.dueDate ? parseInt(item.dueDate.split('-')[2], 10) : 0;
-      return isCollector || day === 30;
-    });
-    reportTitle = 'COLLECTION REPORT - JEFFORD (EVERY 30TH OF THE MONTH)';
-    exportFilename = 'jefford_collection_30th.xlsx';
-  } else if (collector === 'jake') {
-    db = db.filter(item => {
-      const isCollector = item.collector && item.collector.toLowerCase().includes('jake');
-      const day = item.dueDate ? parseInt(item.dueDate.split('-')[2], 10) : 0;
-      return isCollector || day === 15;
-    });
-    reportTitle = 'COLLECTION REPORT - JAKE (EVERY 15TH OF THE MONTH)';
-    exportFilename = 'jake_collection_15th.xlsx';
+  // PINAGSAMA NA ANG JEFFORD AT JAKE DITO
+  if (collectorQuery.includes('jefford')) {
+    db = db.filter(item => (item.collector || '').toLowerCase().includes('jefford'));
+    reportTitle = 'COLLECTION REPORT - JEFFORD (ALL SCHEDULES)';
+    exportFilename = 'jefford_collection_report.xlsx';
+  } else if (collectorQuery.includes('jake')) {
+    db = db.filter(item => (item.collector || '').toLowerCase().includes('jake'));
+    reportTitle = 'COLLECTION REPORT - JAKE (ALL SCHEDULES)';
+    exportFilename = 'jake_collection_report.xlsx';
   }
 
   const workbook = new ExcelJS.Workbook();
@@ -1045,7 +1052,7 @@ app.get('/api/export-excel', async (req, res) => {
       item.name,
       item.address || '',
       item.plan,
-      item.collector || 'Jefford',
+      item.collector ? item.collector.split(' ')[0] : 'Jefford',
       item.dueDate,
       item.amount,
       item.previousBalance || 0,
