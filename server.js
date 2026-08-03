@@ -1,86 +1,89 @@
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
 const ExcelJS = require('exceljs');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const DB_FILE = path.join(__dirname, 'database.json');
+// ================= SUPABASE CONFIGURATION =================
+// Ilagay dito ang iyong Supabase URL at Anon Key o gamitin ang Environment Variables sa Render/Railway
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cytckucqmcyubwbhyhsx.supabase.co/rest/v1/';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE0MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const ADMIN_FILE = path.join(__dirname, 'admins.json');
+const fs = require('fs');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
-// Siguraduhing may database.json[cite: 2]
-if (!fs.existsSync(DB_FILE)) {
-  fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
-  console.log('📁 Gumawa ng bagong database.json.');
-} else {
-  try {
-    const testParse = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    if (!Array.isArray(testParse)) {
-      fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
-    }
-  } catch (e) {
-    fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
-  }
-}
-
-// Siguraduhing may admins.json[cite: 2]
+// Siguraduhing may admins.json para sa Admin Login
 if (!fs.existsSync(ADMIN_FILE)) {
   const initialAdmins = [{ id: 1, username: "admin", password: "admin123" }];
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
 }
 
-// Helper Functions para sa Database[cite: 2]
-const getDB = () => {
+const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
+const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));
+
+// Helper Functions para sa Supabase Database
+const getDB = async () => {
   try {
-    let raw = fs.readFileSync(DB_FILE, 'utf8');
-    let db = JSON.parse(raw);
-    if (!Array.isArray(db)) db = [];
+    const { data, error } = await supabase.from('invoices').select('*');
+    if (error) throw error;
+    let db = data || [];
     
     let updated = false;
     const today = new Date();
 
-    db.forEach(item => {
-      if (!item || !item.dueDate) return;
+    for (let item of db) {
+      if (!item || !item.dueDate) continue;
       const due = new Date(item.dueDate);
-      if (isNaN(due.getTime())) return;
+      if (isNaN(due.getTime())) continue;
 
       if (today.getFullYear() > due.getFullYear() || 
          (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
         
+        let newStatus = item.status;
+        let newPrevBalance = Number(item.previousBalance) || 0;
+        let newPrevMonths = Number(item.previousBalanceMonths) || 0;
+
         if (item.status === 'paid') {
-          item.previousBalance = 0;
-          item.previousBalanceMonths = 0;
-          item.status = 'unpaid';
+          newPrevBalance = 0;
+          newPrevMonths = 0;
+          newStatus = 'unpaid';
         } else if (item.status === 'unpaid' || item.status === 'reconnected') {
-          item.previousBalance = (Number(item.previousBalance) || 0) + (Number(item.amount) || 0);
-          item.previousBalanceMonths = (Number(item.previousBalanceMonths) || 0) + 1;
-          item.status = 'unpaid';
+          newPrevBalance = newPrevBalance + (Number(item.amount) || 0);
+          newPrevMonths = newPrevMonths + 1;
+          newStatus = 'unpaid';
         }
 
         due.setMonth(due.getMonth() + 1);
-        item.dueDate = due.toISOString().split('T')[0];
+        const newDueDate = due.toISOString().split('T')[0];
+
+        // I-update sa Supabase kapag nagbago ang buwan
+        await supabase.from('invoices').update({
+          status: newStatus,
+          previousBalance: newPrevBalance,
+          previousBalanceMonths: newPrevMonths,
+          dueDate: newDueDate
+        }).eq('id', item.id);
+
+        item.status = newStatus;
+        item.previousBalance = newPrevBalance;
+        item.previousBalanceMonths = newPrevMonths;
+        item.dueDate = newDueDate;
         updated = true;
       }
-    });
-
-    if (updated) {
-      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
     }
     return db;
   } catch (err) {
-    console.error("Error sa pagbasa ng DB:", err);
+    console.error("Error sa pagbasa ng DB mula Supabase:", err);
     return [];
   }
 };
-
-const saveDB = (data) => fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
-const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));
 
 // ================= LOGIN PAGE =================
 app.get('/', (req, res) => {
@@ -194,8 +197,6 @@ app.get('/customer', (req, res) => {
           <button onclick="checkBill()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition shadow-lg">Tingnan</button>
         </div>
 
-        <div id="reminderBox" class="hidden text-xs p-3 rounded mb-4 text-center font-medium shadow"></div>
-
         <div id="resultArea" class="hidden bg-black/40 border border-gray-700 rounded-xl p-5 space-y-3 text-sm">
           <div class="flex justify-between border-b border-gray-700 pb-2">
             <span class="text-gray-400">Customer ID:</span>
@@ -251,13 +252,11 @@ app.get('/customer', (req, res) => {
           const id = document.getElementById('customerId').value.trim();
           const errDiv = document.getElementById('errorMsg');
           const resultArea = document.getElementById('resultArea');
-          const reminderBox = document.getElementById('reminderBox');
 
           if (!id) {
             errDiv.textContent = 'Mangyaring maglagay ng Customer ID.';
             errDiv.classList.remove('hidden');
             resultArea.classList.add('hidden');
-            reminderBox.classList.add('hidden');
             return;
           }
 
@@ -314,8 +313,8 @@ app.get('/customer', (req, res) => {
   `);
 });
 
-app.get('/api/customer/:id', (req, res) => {
-  const db = getDB();
+app.get('/api/customer/:id', async (req, res) => {
+  const db = await getDB();
   const customer = db.find(inv => String(inv.id).toLowerCase() === String(req.params.id).toLowerCase());
   if (!customer) {
     return res.status(404).json({ error: 'Walang nahanap na record para sa Customer ID na ito.' });
@@ -386,9 +385,9 @@ app.get('/dashboard', (req, res) => {
             </div>
             
             <div class="flex items-center gap-1 ml-2">
-  <input type="text" id="searchInput" placeholder="Search customer..." class="border px-3 py-1 rounded text-sm focus:outline-none focus:border-blue-500" oninput="searchCustomer()" onkeypress="handleSearchKey(event)">
-  <button onclick="searchCustomer()" class="bg-gray-700 text-white px-3 py-1 rounded text-sm hover:bg-gray-800 font-medium shadow">🔍 Search</button>
-</div>
+              <input type="text" id="searchInput" placeholder="Search customer..." class="border px-3 py-1 rounded text-sm focus:outline-none focus:border-blue-500" oninput="searchCustomer()" onkeypress="handleSearchKey(event)">
+              <button onclick="searchCustomer()" class="bg-gray-700 text-white px-3 py-1 rounded text-sm hover:bg-gray-800 font-medium shadow">🔍 Search</button>
+            </div>
           </div>
 
           <!-- Add Customer Form -->
@@ -587,7 +586,6 @@ app.get('/dashboard', (req, res) => {
       </div>
 
       <script>
-        // GLOBALS NA NAKA-DECLARE PARA MAIWASAN ANG REFERENCE ERROR
         var currentFilter = 'all';
         var searchQuery = '';
         var allInvoices = [];
@@ -598,22 +596,19 @@ app.get('/dashboard', (req, res) => {
           window.location.href = '/';
         }
 
-        // Global variable para sa search query
-var searchQuery = '';
+        function searchCustomer() {
+          var inputElement = document.getElementById('searchInput');
+          if (inputElement) {
+            searchQuery = inputElement.value.trim().toLowerCase();
+            loadData();
+          }
+        }
 
-function searchCustomer() {
-  var inputElement = document.getElementById('searchInput');
-  if (inputElement) {
-    searchQuery = inputElement.value.trim().toLowerCase();
-    loadData();
-  }
-}
-
-function handleSearchKey(e) {
-  if (e.key === 'Enter') {
-    searchCustomer();
-  }
-}
+        function handleSearchKey(e) {
+          if (e.key === 'Enter') {
+            searchCustomer();
+          }
+        }
 
         function filterStatus(status) {
           currentFilter = status;
@@ -630,8 +625,6 @@ function handleSearchKey(e) {
             if (!Array.isArray(allInvoices)) allInvoices = [];
 
             var total = allInvoices.length;
-            var paidCount = allInvoices.filter(function(d) { return d && d.status === 'paid'; }).length;
-            var unpaidCount = allInvoices.filter(function(d) { return d && d.status === 'unpaid'; }).length;
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             
             var totalPaidAmount = allInvoices.filter(function(d) { return d && d.status === 'paid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
@@ -730,9 +723,6 @@ function handleSearchKey(e) {
             });
           } catch (err) {
             console.error('Error loading data:', err);
-            if (tbody) {
-              tbody.innerHTML = '<tr><td colspan="12" class="p-6 text-center text-red-500 font-semibold bg-red-50">❌ Error sa pag-load ng data: ' + err.message + '</td></tr>';
-            }
           }
         }
 
@@ -766,7 +756,7 @@ function handleSearchKey(e) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                id: idInput,
+                id: idInput || undefined,
                 name: name,
                 address: address,
                 plan: plan,
@@ -793,7 +783,6 @@ function handleSearchKey(e) {
               alert('❌ Error: ' + (data.error || 'May problemang naganap sa pag-save.'));
             }
           } catch (err) {
-            console.error("Add Subscriber Error:", err);
             alert('❌ Error sa koneksyon: ' + err.message);
           }
         }
@@ -935,7 +924,6 @@ function handleSearchKey(e) {
           }
         }
 
-        // Unang pagpapatakbo pagka-load ng pahina
         loadData();
       </script>
     </body>
@@ -974,15 +962,16 @@ app.delete('/api/admins/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// ================= INVOICES CRUD API =================
-app.get('/api/invoices', (req, res) => {
+// ================= INVOICES SUPABASE API =================
+app.get('/api/invoices', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.json(getDB());
+  const db = await getDB();
+  res.json(db);
 });
 
-app.post('/api/invoices', (req, res) => {
+app.post('/api/invoices', async (req, res) => {
   try {
-    const db = getDB();
+    const db = await getDB();
     const customId = req.body.id ? String(req.body.id).trim() : null;
 
     if (customId && db.some(inv => String(inv.id).toLowerCase() === customId.toLowerCase())) {
@@ -1018,7 +1007,7 @@ app.post('/api/invoices', (req, res) => {
     }
 
     const newItem = {
-      id: finalId,
+      id: String(finalId),
       name: req.body.name ? req.body.name.trim() : "Untitled Customer",
       address: req.body.address || "SAN AGUSTIN",
       plan: req.body.plan || "50Mbps",
@@ -1030,8 +1019,9 @@ app.post('/api/invoices', (req, res) => {
       dueDate: finalDueDate
     };
 
-    db.push(newItem);
-    saveDB(db);
+    const { data, error } = await supabase.from('invoices').insert([newItem]);
+    if (error) throw error;
+
     res.json(newItem);
   } catch (err) {
     console.error("Error sa pag-save ng customer:", err);
@@ -1039,55 +1029,61 @@ app.post('/api/invoices', (req, res) => {
   }
 });
 
-app.put('/api/invoices/:id/pay', (req, res) => {
-  const db = getDB();
-  const item = db.find(inv => String(inv.id).toLowerCase() === String(req.params.id).toLowerCase());
-  if (!item) return res.status(404).json({ error: "Hindi nahanap ang record" });
-  item.status = "paid";
-  item.previousBalance = 0.00;
-  item.previousBalanceMonths = 0;
-  saveDB(db);
-  res.json(item);
+app.put('/api/invoices/:id/pay', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('invoices').update({
+      status: "paid",
+      previousBalance: 0.00,
+      previousBalanceMonths: 0
+    }).eq('id', req.params.id).select();
+
+    if (error) throw error;
+    res.json(data[0] || { success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Hindi ma-update ang status" });
+  }
 });
 
-app.put('/api/invoices/:id', (req, res) => {
-  const db = getDB();
-  const item = db.find(inv => String(inv.id).toLowerCase() === String(req.params.id).toLowerCase());
-  if (!item) return res.status(404).json({ error: "Hindi nahanap ang record" });
-  
-  item.name = req.body.name || item.name;
-  item.address = req.body.address || item.address;
-  item.plan = req.body.plan || item.plan;
-  item.collector = req.body.collector || item.collector;
-  item.dueDate = req.body.dueDate || item.dueDate;
-  item.amount = req.body.amount !== undefined ? parseFloat(req.body.amount) : item.amount;
-  item.previousBalance = req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : (item.previousBalance || 0);
-  item.previousBalanceMonths = req.body.previousBalanceMonths !== undefined ? parseInt(req.body.previousBalanceMonths, 10) : (item.previousBalanceMonths || 0);
-  item.status = req.body.status || item.status;
-  
-  saveDB(db);
-  res.json(item);
+app.put('/api/invoices/:id', async (req, res) => {
+  try {
+    const updatePayload = {};
+    if (req.body.name !== undefined) updatePayload.name = req.body.name;
+    if (req.body.address !== undefined) updatePayload.address = req.body.address;
+    if (req.body.plan !== undefined) updatePayload.plan = req.body.plan;
+    if (req.body.collector !== undefined) updatePayload.collector = req.body.collector;
+    if (req.body.dueDate !== undefined) updatePayload.dueDate = req.body.dueDate;
+    if (req.body.amount !== undefined) updatePayload.amount = parseFloat(req.body.amount);
+    if (req.body.previousBalance !== undefined) updatePayload.previousBalance = parseFloat(req.body.previousBalance);
+    if (req.body.previousBalanceMonths !== undefined) updatePayload.previousBalanceMonths = parseInt(req.body.previousBalanceMonths, 10);
+    if (req.body.status !== undefined) updatePayload.status = req.body.status;
+
+    const { data, error } = await supabase.from('invoices').update(updatePayload).eq('id', req.params.id).select();
+    if (error) throw error;
+
+    res.json(data[0] || { success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Hindi na-save ang mga pagbabago" });
+  }
 });
 
-app.delete('/api/invoices/:id', (req, res) => {
-  let db = getDB();
-  const index = db.findIndex(inv => String(inv.id).toLowerCase() === String(req.params.id).toLowerCase());
-  if (index === -1) return res.status(404).json({ error: "Hindi nahanap ang record" });
-  
-  const deleted = db.splice(index, 1);
-  saveDB(db);
-  res.json(deleted[0]);
+app.delete('/api/invoices/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('invoices').delete().eq('id', req.params.id).select();
+    if (error) throw error;
+    res.json(data[0] || { success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Hindi nabura ang customer" });
+  }
 });
 
-// ================= EXCEL EXPORT ROUTE (NA-UPDATE PARA SA 15TH & 30TH DUE DATES) =================
+// ================= EXCEL EXPORT ROUTE (15th & 30th) =================
 app.get('/api/export-excel', async (req, res) => {
-  let db = getDB();
+  let db = await getDB();
   const collectorQuery = (req.query.collector || '').toLowerCase();
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'RTECH Computer Center';
 
-  // Helper function para magdagdag ng sheet para sa bawat collector at due date group
   const addCollectorSheet = (sheetName, reportTitle, filteredData) => {
     const sheet = workbook.addWorksheet(sheetName);
     sheet.properties.defaultRowHeight = 22;
@@ -1193,7 +1189,6 @@ app.get('/api/export-excel', async (req, res) => {
     });
   };
 
-  // Function para i-filter ang due date kung ito ba ay 15th o 30th (15th = araw <= 15, 30th = araw > 15)
   const filterByDueDate = (items, is15th) => {
     return items.filter(item => {
       if (!item.dueDate) return false;
