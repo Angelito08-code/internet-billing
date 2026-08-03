@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3000;
 
 // ================= SUPABASE CONFIGURATION =================
 // Ilagay dito ang iyong Supabase URL at Anon Key o gamitin ang Environment Variables sa Render/Railway
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cytckucqmcyubwbhyhsx.supabase.co/rest/v1/';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cytckucqmcyubwbhyhsx.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE0MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
