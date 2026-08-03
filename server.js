@@ -383,6 +383,7 @@ app.get('/dashboard', (req, res) => {
             <input type="text" id="newAddress" placeholder="Address" class="border px-2 py-1 rounded text-sm w-28">
             <input type="text" id="newPlan" placeholder="Plan" class="border px-2 py-1 rounded text-sm w-24">
             <input type="number" id="newAmount" placeholder="Monthly (₱)" class="border px-2 py-1 rounded text-sm w-24">
+            <input type="date" id="newDueDate" class="border px-2 py-1 rounded text-sm w-36">
             <button onclick="addSubscriber()" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 font-medium shadow">Add Customer</button>
           </div>
         </div>
@@ -602,7 +603,8 @@ app.get('/dashboard', (req, res) => {
           const address = document.getElementById('newAddress').value;
           const plan = document.getElementById('newPlan').value;
           const amount = parseFloat(document.getElementById('newAmount').value);
-          
+          const dueDate = document.getElementById('newDueDate').value;
+
           if (!name || !plan || isNaN(amount)) {
             alert('Paki-punuan ang Pangalan, Plan, at Monthly Amount nang tama.');
             return;
@@ -611,7 +613,7 @@ app.get('/dashboard', (req, res) => {
           const res = await fetch('/api/invoices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: idInput, name, address, plan, amount })
+            body: JSON.stringify({ id: idInput, name, address, plan, amount, dueDate })
           });
 
           if (res.ok) {
@@ -620,6 +622,7 @@ app.get('/dashboard', (req, res) => {
             document.getElementById('newAddress').value = '';
             document.getElementById('newPlan').value = '';
             document.getElementById('newAmount').value = '';
+            document.getElementById('newDueDate').value = '';
             loadData();
           } else {
             const err = await res.json();
@@ -781,6 +784,9 @@ app.post('/api/invoices', (req, res) => {
   const generatedId = db.length > 0 ? (typeof db[db.length - 1].id === 'number' ? db[db.length - 1].id + 1 : db.length + 1) : 1;
   const finalId = customId ? (isNaN(customId) ? customId : Number(customId)) : generatedId;
 
+  // Default value kung hindi nag-set ng custom date sa form
+  const defaultDueDate = new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+
   const newItem = {
     id: finalId,
     name: req.body.name,
@@ -789,7 +795,7 @@ app.post('/api/invoices', (req, res) => {
     amount: req.body.amount,
     previousBalance: 0.00,
     status: "unpaid",
-    dueDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]
+    dueDate: req.body.dueDate || defaultDueDate
   };
   db.push(newItem);
   saveDB(db);
