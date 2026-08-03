@@ -1,16 +1,14 @@
 {
-  "name": "rtech-billing-system",
+  "name": "internet-billing",
   "version": "1.0.0",
-  "description": "RTECH Internet Billing & Payment Tracker",
+  "description": "RTECH Billing System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.39.8",
     "exceljs": "^4.4.0",
     "express": "^4.19.2"
-  },
-  "engines": {
-    "node": ">=18.0.0"
   }
 }
