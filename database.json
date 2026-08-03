@@ -1,3 +1,26 @@
-if (!fs.existsSync(DB_FILE)) {
-  fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
-}
+[
+  {
+    "id": 1,
+    "name": "Juan Dela Cruz",
+    "address": "SAN AGUSTIN",
+    "plan": "50Mbps",
+    "collector": "Jefford",
+    "amount": 800,
+    "previousBalance": 0,
+    "previousBalanceMonths": 0,
+    "status": "unpaid",
+    "dueDate": "2026-08-30"
+  },
+  {
+    "id": 2,
+    "name": "Maria Clara",
+    "address": "LIBERTAD",
+    "plan": "100Mbps",
+    "collector": "Jake",
+    "amount": 1500,
+    "previousBalance": 0,
+    "previousBalanceMonths": 0,
+    "status": "paid",
+    "dueDate": "2026-08-30"
+  }
+]
