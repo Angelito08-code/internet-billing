@@ -13,7 +13,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
-// Siguraduhing may database.json
+// Siguraduhing may database.json[cite: 2]
 if (!fs.existsSync(DB_FILE)) {
   fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
   console.log('📁 Gumawa ng bagong database.json.');
@@ -28,13 +28,13 @@ if (!fs.existsSync(DB_FILE)) {
   }
 }
 
-// Siguraduhing may admins.json
+// Siguraduhing may admins.json[cite: 2]
 if (!fs.existsSync(ADMIN_FILE)) {
   const initialAdmins = [{ id: 1, username: "admin", password: "admin123" }];
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
 }
 
-// Helper Functions para sa Database
+// Helper Functions para sa Database[cite: 2]
 const getDB = () => {
   try {
     let raw = fs.readFileSync(DB_FILE, 'utf8');
@@ -587,6 +587,7 @@ app.get('/dashboard', (req, res) => {
       </div>
 
       <script>
+        // GLOBALS NA NAKA-DECLARE PARA MAIWASAN ANG REFERENCE ERROR
         var currentFilter = 'all';
         var searchQuery = '';
         var allInvoices = [];
@@ -606,6 +607,11 @@ app.get('/dashboard', (req, res) => {
           if (e.key === 'Enter') {
             searchCustomer();
           }
+        }
+
+        function filterStatus(status) {
+          currentFilter = status;
+          loadData();
         }
 
         async function loadData() {
@@ -691,10 +697,10 @@ app.get('/dashboard', (req, res) => {
 
               var actionButtons = '';
               if (itemStatus !== 'paid') {
-                actionButtons += '<button onclick="markPaid(\'' + item.id + '\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
+                actionButtons += '<button onclick="markPaid(\\'' + item.id + '\\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
               }
-              actionButtons += '<button onclick="openEditModal(\'' + item.id + '\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
-              actionButtons += '<button onclick="deleteCustomer(\'' + item.id + '\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
+              actionButtons += '<button onclick="openEditModal(\\'' + item.id + '\\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
+              actionButtons += '<button onclick="deleteCustomer(\\'' + item.id + '\\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
 
               tr.innerHTML = 
                 '<td class="p-3 text-gray-700 font-mono font-bold">' + (item.id !== undefined ? item.id : '') + '</td>' +
@@ -722,11 +728,6 @@ app.get('/dashboard', (req, res) => {
               tbody.innerHTML = '<tr><td colspan="12" class="p-6 text-center text-red-500 font-semibold bg-red-50">❌ Error sa pag-load ng data: ' + err.message + '</td></tr>';
             }
           }
-        }
-
-        function filterStatus(status) {
-          currentFilter = status;
-          loadData();
         }
 
         async function markPaid(id) {
@@ -772,17 +773,16 @@ app.get('/dashboard', (req, res) => {
             var data = await res.json();
 
             if (res.ok) {
-              // I-clear ang mga input form
               document.getElementById('newId').value = '';
               document.getElementById('newName').value = '';
               document.getElementById('newDueDate').value = '';
 
-              // I-reset ang filter at search bar para makita agad sa listahan
               currentFilter = 'all';
               searchQuery = '';
               document.getElementById('searchInput').value = '';
 
               await loadData();
+              alert('✅ Tagumpay na naidagdag si "' + name + '"!');
             } else {
               alert('❌ Error: ' + (data.error || 'May problemang naganap sa pag-save.'));
             }
@@ -1026,10 +1026,10 @@ app.post('/api/invoices', (req, res) => {
 
     db.push(newItem);
     saveDB(db);
-    return res.json(newItem);
+    res.json(newItem);
   } catch (err) {
     console.error("Error sa pag-save ng customer:", err);
-    return res.status(500).json({ error: "Hindi ma-save ang customer: " + err.message });
+    res.status(500).json({ error: "Hindi ma-save ang customer: " + err.message });
   }
 });
 
