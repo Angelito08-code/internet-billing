@@ -606,7 +606,7 @@ app.get('/dashboard', (req, res) => {
           }
         }
 
-        async function loadData() {
+async function loadData() {
           var tbody = document.getElementById('tableBody');
           try {
             const res = await fetch('/api/invoices?t=' + Date.now(), { cache: 'no-store' });
@@ -623,23 +623,26 @@ app.get('/dashboard', (req, res) => {
             var totalPaidAmount = allInvoices.filter(function(d) { return d && d.status === 'paid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
             var totalUnpaidAmount = allInvoices.filter(function(d) { return d && d.status === 'unpaid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
 
-            document.getElementById('summary').innerHTML = 
-              '<div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 shadow-sm">' +
-                '<div class="text-gray-500 text-xs font-medium">Total Subscribers</div>' +
-                '<div class="text-xl font-bold">' + total + '</div>' +
-              '</div>' +
-              '<div class="p-4 bg-gray-50 rounded border-l-4 border-green-500 shadow-sm">' +
-                '<div class="text-gray-500 text-xs font-medium">Paid (Total Collected)</div>' +
-                '<div class="text-xl font-bold text-green-600">₱' + totalPaidAmount.toFixed(2) + '</div>' +
-              '</div>' +
-              '<div class="p-4 bg-gray-50 rounded border-l-4 border-red-500 shadow-sm">' +
-                '<div class="text-gray-500 text-xs font-medium">Unpaid (Total Receivables)</div>' +
-                '<div class="text-xl font-bold text-red-600">₱' + totalUnpaidAmount.toFixed(2) + '</div>' +
-              '</div>' +
-              '<div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 shadow-sm">' +
-                '<div class="text-gray-500 text-xs font-medium">Disconnected Accounts</div>' +
-                '<div class="text-xl font-bold text-yellow-600">' + disconnectedCount + '</div>' +
-              '</div>';
+            var summaryEl = document.getElementById('summary');
+            if (summaryEl) {
+              summaryEl.innerHTML = 
+                '<div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 shadow-sm">' +
+                  '<div class="text-gray-500 text-xs font-medium">Total Subscribers</div>' +
+                  '<div class="text-xl font-bold">' + total + '</div>' +
+                '</div>' +
+                '<div class="p-4 bg-gray-50 rounded border-l-4 border-green-500 shadow-sm">' +
+                  '<div class="text-gray-500 text-xs font-medium">Paid (Total Collected)</div>' +
+                  '<div class="text-xl font-bold text-green-600">₱' + totalPaidAmount.toFixed(2) + '</div>' +
+                '</div>' +
+                '<div class="p-4 bg-gray-50 rounded border-l-4 border-red-500 shadow-sm">' +
+                  '<div class="text-gray-500 text-xs font-medium">Unpaid (Total Receivables)</div>' +
+                  '<div class="text-xl font-bold text-red-600">₱' + totalUnpaidAmount.toFixed(2) + '</div>' +
+                '</div>' +
+                '<div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 shadow-sm">' +
+                  '<div class="text-gray-500 text-xs font-medium">Disconnected Accounts</div>' +
+                  '<div class="text-xl font-bold text-yellow-600">' + disconnectedCount + '</div>' +
+                '</div>';
+            }
 
             tbody.innerHTML = '';
             
@@ -721,7 +724,6 @@ app.get('/dashboard', (req, res) => {
             }
           }
         }
-
         function filterStatus(status) {
           currentFilter = status;
           loadData();
