@@ -598,16 +598,22 @@ app.get('/dashboard', (req, res) => {
           window.location.href = '/';
         }
 
-        function searchCustomer() {
-          searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
-          loadData();
-        }
+        // Global variable para sa search query
+var searchQuery = '';
 
-        function handleSearchKey(e) {
-          if (e.key === 'Enter') {
-            searchCustomer();
-          }
-        }
+function searchCustomer() {
+  var inputElement = document.getElementById('searchInput');
+  if (inputElement) {
+    searchQuery = inputElement.value.trim().toLowerCase();
+    loadData();
+  }
+}
+
+function handleSearchKey(e) {
+  if (e.key === 'Enter') {
+    searchCustomer();
+  }
+}
 
         function filterStatus(status) {
           currentFilter = status;
