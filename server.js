@@ -39,9 +39,11 @@ const getDB = () => {
       
       if (item.status === 'paid') {
         item.previousBalance = 0;
+        item.previousBalanceMonths = 0;
         item.status = 'unpaid';
-      } else {
+      } else if (item.status === 'unpaid' || item.status === 'reconnected') {
         item.previousBalance = (item.previousBalance || 0) + item.amount;
+        item.previousBalanceMonths = (item.previousBalanceMonths || 0) + 1;
         item.status = 'unpaid';
       }
 
@@ -243,18 +245,25 @@ app.get('/customer', (req, res) => {
             document.getElementById('resPlan').textContent = data.plan;
             document.getElementById('resDueDate').textContent = data.dueDate;
             document.getElementById('resAmount').textContent = '₱' + data.amount.toFixed(2);
-            document.getElementById('resPrevBalance').textContent = '₱' + (data.previousBalance || 0).toFixed(2);
+            
+            const prevMos = data.previousBalanceMonths || 0;
+            document.getElementById('resPrevBalance').textContent = '₱' + (data.previousBalance || 0).toFixed(2) + ' (' + prevMos + ' buwan)';
             
             const totalDue = data.amount + (data.previousBalance || 0);
             document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
             
             const statusEl = document.getElementById('resStatus');
-            statusEl.textContent = data.status;
+            statusEl.textContent = data.status === 'pullout' ? 'PULL OUT' : data.status;
             statusEl.className = 'px-3 py-1 text-xs rounded-full font-bold uppercase ';
+            
             if (data.status === 'paid') {
               statusEl.className += 'bg-green-500/20 text-green-400 border border-green-500';
             } else if (data.status === 'unpaid') {
               statusEl.className += 'bg-red-500/20 text-red-400 border border-red-500';
+            } else if (data.status === 'reconnected') {
+              statusEl.className += 'bg-blue-500/20 text-blue-400 border border-blue-500';
+            } else if (data.status === 'pullout') {
+              statusEl.className += 'bg-purple-500/20 text-purple-400 border border-purple-500';
             } else {
               statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
             }
@@ -368,6 +377,8 @@ app.get('/dashboard', (req, res) => {
               <button onclick="filterStatus('paid')" class="px-3 py-1 bg-green-100 text-green-700 rounded text-sm font-medium hover:bg-green-200">Paid</button>
               <button onclick="filterStatus('unpaid')" class="px-3 py-1 bg-red-100 text-red-700 rounded text-sm font-medium hover:bg-red-200">Unpaid</button>
               <button onclick="filterStatus('disconnected')" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-sm font-medium hover:bg-yellow-200">Disconnected</button>
+              <button onclick="filterStatus('reconnected')" class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium hover:bg-blue-200">Reconnected</button>
+              <button onclick="filterStatus('pullout')" class="px-3 py-1 bg-purple-100 text-purple-700 rounded text-sm font-medium hover:bg-purple-200">Pull Out</button>
             </div>
             
             <div class="flex items-center gap-1 ml-2">
@@ -437,6 +448,7 @@ app.get('/dashboard', (req, res) => {
                 <th class="p-3">Due Date</th>
                 <th class="p-3">Monthly</th>
                 <th class="p-3">Prev. Balance</th>
+                <th class="p-3">Prev. Mos</th>
                 <th class="p-3">Total Due</th>
                 <th class="p-3">Status</th>
                 <th class="p-3">Actions</th>
@@ -453,14 +465,14 @@ app.get('/dashboard', (req, res) => {
           <h2 class="text-xl font-bold text-gray-800 mb-4">Edit Customer Info</h2>
           <input type="hidden" id="editId">
           
-          <div class="space-y-4">
+          <div class="space-y-3">
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Customer Name</label>
-              <input type="text" id="editName" class="w-full border px-3 py-2 rounded text-sm">
+              <input type="text" id="editName" class="w-full border px-3 py-1.5 rounded text-sm">
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Address</label>
-              <select id="editAddress" class="w-full border px-3 py-2 rounded text-sm bg-white">
+              <select id="editAddress" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
                 <option value="">-- Pumili ng Address --</option>
                 <option value="SAN AGUSTIN">SAN AGUSTIN</option>
                 <option value="LIBERTAD">LIBERTAD</option>
@@ -482,7 +494,7 @@ app.get('/dashboard', (req, res) => {
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Plan</label>
-              <select id="editPlan" class="w-full border px-3 py-2 rounded text-sm bg-white">
+              <select id="editPlan" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
                 <option value="">-- Pumili ng Plan --</option>
                 <option value="50Mbps">50Mbps</option>
                 <option value="75Mbps">75Mbps</option>
@@ -491,7 +503,7 @@ app.get('/dashboard', (req, res) => {
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Monthly Amount</label>
-              <select id="editAmount" class="w-full border px-3 py-2 rounded text-sm bg-white">
+              <select id="editAmount" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
                 <option value="">-- Pumili ng Monthly --</option>
                 <option value="800">₱800</option>
                 <option value="1000">₱1000</option>
@@ -502,18 +514,28 @@ app.get('/dashboard', (req, res) => {
             </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date</label>
-              <input type="date" id="editDueDate" class="w-full border px-3 py-2 rounded text-sm">
+              <input type="date" id="editDueDate" class="w-full border px-3 py-1.5 rounded text-sm">
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Previous Balance (₱)</label>
-              <input type="number" id="editPrevBalance" class="w-full border px-3 py-2 rounded text-sm">
+            
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Prev. Balance (₱)</label>
+                <input type="number" id="editPrevBalance" class="w-full border px-3 py-1.5 rounded text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Prev. Mos (Buwan)</label>
+                <input type="number" id="editPrevBalanceMonths" class="w-full border px-3 py-1.5 rounded text-sm" placeholder="e.g. 1, 2">
+              </div>
             </div>
+
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Status</label>
-              <select id="editStatus" class="w-full border px-3 py-2 rounded text-sm bg-white">
+              <select id="editStatus" class="w-full border px-3 py-1.5 rounded text-sm bg-white font-semibold">
                 <option value="paid">PAID</option>
                 <option value="unpaid">UNPAID</option>
                 <option value="disconnected">DISCONNECTED</option>
+                <option value="reconnected">RECONNECTED</option>
+                <option value="pullout">PULL OUT</option>
               </select>
             </div>
           </div>
@@ -615,7 +637,7 @@ app.get('/dashboard', (req, res) => {
           });
           
           if (filtered.length === 0) {
-            tbody.innerHTML = \`<tr><td colspan="10" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
+            tbody.innerHTML = \`<tr><td colspan="11" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
             return;
           }
 
@@ -627,8 +649,11 @@ app.get('/dashboard', (req, res) => {
             if (item.status === 'paid') statusBadgeClass = 'bg-green-100 text-green-700';
             else if (item.status === 'unpaid') statusBadgeClass = 'bg-red-100 text-red-700';
             else if (item.status === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800';
+            else if (item.status === 'reconnected') statusBadgeClass = 'bg-blue-100 text-blue-700';
+            else if (item.status === 'pullout') statusBadgeClass = 'bg-purple-100 text-purple-800';
 
             const totalDue = item.amount + (item.previousBalance || 0);
+            const prevMos = item.previousBalanceMonths || 0;
 
             tr.innerHTML = \`
               <td class="p-3 text-gray-600 font-mono">\${item.id}</td>
@@ -638,15 +663,16 @@ app.get('/dashboard', (req, res) => {
               <td class="p-3 text-gray-600">\${item.dueDate}</td>
               <td class="p-3 text-gray-800">₱\${item.amount.toFixed(2)}</td>
               <td class="p-3 text-red-600 font-medium">₱\${(item.previousBalance || 0).toFixed(2)}</td>
+              <td class="p-3 text-gray-600 font-medium">\${prevMos} mos</td>
               <td class="p-3 text-emerald-600 font-bold">₱\${totalDue.toFixed(2)}</td>
               <td class="p-3">
                 <span class="px-2.5 py-1 text-xs rounded-full font-semibold \${statusBadgeClass}">
-                  \${item.status.toUpperCase()}
+                  \${item.status === 'pullout' ? 'PULL OUT' : item.status.toUpperCase()}
                 </span>
               </td>
               <td class="p-3 flex items-center gap-2">
-                \${item.status === 'unpaid' ? \`<button onclick="markPaid('\${item.id}')" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
-                <button onclick="openEditModal('\${item.id}', '\${item.name}', '\${item.address || ''}', '\${item.plan}', '\${item.dueDate}', \${item.amount}, \${item.previousBalance || 0}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
+                \${item.status !== 'paid' ? \`<button onclick="markPaid('\${item.id}')" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
+                <button onclick="openEditModal('\${item.id}', '\${item.name}', '\${item.address || ''}', '\${item.plan}', '\${item.dueDate}', \${item.amount}, \${item.previousBalance || 0}, \${prevMos}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
                 <button onclick="deleteCustomer('\${item.id}')" class="text-red-600 hover:underline font-medium text-xs">Delete</button>
               </td>
             \`;
@@ -697,7 +723,7 @@ app.get('/dashboard', (req, res) => {
           }
         }
 
-        function openEditModal(id, name, address, plan, dueDate, amount, previousBalance, status) {
+        function openEditModal(id, name, address, plan, dueDate, amount, previousBalance, previousBalanceMonths, status) {
           document.getElementById('editId').value = id;
           document.getElementById('editName').value = name;
           document.getElementById('editAddress').value = address;
@@ -705,6 +731,7 @@ app.get('/dashboard', (req, res) => {
           document.getElementById('editDueDate').value = dueDate;
           document.getElementById('editAmount').value = amount;
           document.getElementById('editPrevBalance').value = previousBalance;
+          document.getElementById('editPrevBalanceMonths').value = previousBalanceMonths || 0;
           document.getElementById('editStatus').value = status;
           document.getElementById('editModal').classList.remove('hidden');
         }
@@ -721,6 +748,7 @@ app.get('/dashboard', (req, res) => {
           const dueDate = document.getElementById('editDueDate').value;
           const amount = parseFloat(document.getElementById('editAmount').value);
           const previousBalance = parseFloat(document.getElementById('editPrevBalance').value);
+          const previousBalanceMonths = parseInt(document.getElementById('editPrevBalanceMonths').value, 10);
           const status = document.getElementById('editStatus').value;
 
           if (!name || !address || !plan || !dueDate || isNaN(amount) || isNaN(previousBalance)) {
@@ -731,7 +759,7 @@ app.get('/dashboard', (req, res) => {
           await fetch('/api/invoices/' + id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, address, plan, dueDate, amount, previousBalance, status })
+            body: JSON.stringify({ name, address, plan, dueDate, amount, previousBalance, previousBalanceMonths, status })
           });
 
           closeEditModal();
@@ -860,6 +888,7 @@ app.post('/api/invoices', (req, res) => {
     plan: req.body.plan,
     amount: parseFloat(req.body.amount),
     previousBalance: 0.00,
+    previousBalanceMonths: 0,
     status: "unpaid",
     dueDate: req.body.dueDate || defaultDueDate
   };
@@ -874,6 +903,7 @@ app.put('/api/invoices/:id/pay', (req, res) => {
   if (!item) return res.status(404).json({ error: "Hindi nahanap ang record" });
   item.status = "paid";
   item.previousBalance = 0.00;
+  item.previousBalanceMonths = 0;
   saveDB(db);
   res.json(item);
 });
@@ -888,7 +918,8 @@ app.put('/api/invoices/:id', (req, res) => {
   item.plan = req.body.plan || item.plan;
   item.dueDate = req.body.dueDate || item.dueDate;
   item.amount = req.body.amount !== undefined ? parseFloat(req.body.amount) : item.amount;
-  item.previousBalance = req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : item.previousBalance;
+  item.previousBalance = req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : (item.previousBalance || 0);
+  item.previousBalanceMonths = req.body.previousBalanceMonths !== undefined ? parseInt(req.body.previousBalanceMonths, 10) : (item.previousBalanceMonths || 0);
   item.status = req.body.status || item.status;
   
   saveDB(db);
@@ -905,20 +936,19 @@ app.delete('/api/invoices/:id', (req, res) => {
   res.json(deleted[0]);
 });
 
-// ================= EXCEL EXPORT ROUTE (WITH COLLECTOR FILTER) =================
+// ================= EXCEL EXPORT ROUTE =================
 app.get('/api/export-excel', async (req, res) => {
   let db = getDB();
-  const collector = req.query.collector; // 'jefford', 'jake', o wala
+  const collector = req.query.collector;
 
   let reportTitle = 'RTECH INTERNET BILLING & PAYMENT REPORT';
   let exportFilename = 'rtech_billing_report.xlsx';
 
-  // Filtering batay sa Due Date at Collector
   if (collector === 'jefford') {
     db = db.filter(item => {
       if (!item.dueDate) return false;
       const day = parseInt(item.dueDate.split('-')[2], 10);
-      return day === 30; // Collector ng every 30th
+      return day === 30;
     });
     reportTitle = 'COLLECTION REPORT - JEFFORD (EVERY 30TH OF THE MONTH)';
     exportFilename = 'jefford_collection_30th.xlsx';
@@ -926,7 +956,7 @@ app.get('/api/export-excel', async (req, res) => {
     db = db.filter(item => {
       if (!item.dueDate) return false;
       const day = parseInt(item.dueDate.split('-')[2], 10);
-      return day === 15; // Collector ng every 15th
+      return day === 15;
     });
     reportTitle = 'COLLECTION REPORT - JAKE (EVERY 15TH OF THE MONTH)';
     exportFilename = 'jake_collection_15th.xlsx';
@@ -938,7 +968,7 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.properties.defaultRowHeight = 22;
 
-  sheet.mergeCells('A1:I1');
+  sheet.mergeCells('A1:J1');
   const titleCell = sheet.getCell('A1');
   titleCell.value = reportTitle;
   titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFF' } };
@@ -948,7 +978,7 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.addRow([]);
 
-  const headerRow = sheet.addRow(['Customer ID', 'Customer Name', 'Address', 'Plan', 'Due Date', 'Monthly', 'Prev. Balance', 'Total Due', 'Status']);
+  const headerRow = sheet.addRow(['Customer ID', 'Customer Name', 'Address', 'Plan', 'Due Date', 'Monthly', 'Prev. Balance', 'Prev. Mos', 'Total Due', 'Status']);
   headerRow.height = 25;
   headerRow.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } };
   
@@ -979,8 +1009,9 @@ app.get('/api/export-excel', async (req, res) => {
       item.dueDate,
       item.amount,
       item.previousBalance || 0,
+      (item.previousBalanceMonths || 0) + ' mos',
       totalDue,
-      item.status.toUpperCase()
+      item.status === 'pullout' ? 'PULL OUT' : item.status.toUpperCase()
     ]);
 
     row.font = { name: 'Arial', size: 10 };
@@ -997,17 +1028,18 @@ app.get('/api/export-excel', async (req, res) => {
         right: { style: 'thin', color: { argb: 'E5E7EB' } }
       };
 
-      if (colNumber === 1) cell.alignment = { horizontal: 'center' };
-      if (colNumber === 5) cell.alignment = { horizontal: 'center' };
-      if (colNumber >= 6 && colNumber <= 8) {
+      if (colNumber === 1 || colNumber === 5 || colNumber === 8) cell.alignment = { horizontal: 'center' };
+      if (colNumber === 6 || colNumber === 7 || colNumber === 9) {
         cell.numFmt = '"₱"#,##0.00';
         cell.alignment = { horizontal: 'right' };
       }
-      if (colNumber === 9) {
+      if (colNumber === 10) {
         cell.alignment = { horizontal: 'center' };
         let colorCode = '047857';
         if (item.status === 'unpaid') colorCode = 'B91C1C';
         else if (item.status === 'disconnected') colorCode = 'B45309';
+        else if (item.status === 'reconnected') colorCode = '1D4ED8';
+        else if (item.status === 'pullout') colorCode = '6B21A8';
         cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: colorCode } };
       }
     });
@@ -1015,17 +1047,17 @@ app.get('/api/export-excel', async (req, res) => {
 
   sheet.addRow([]);
 
-  const paidRow = sheet.addRow(['', '', '', '', '', '', 'TOTAL COLLECTED', totalCollected, '']);
+  const paidRow = sheet.addRow(['', '', '', '', '', '', '', 'TOTAL COLLECTED', totalCollected, '']);
   paidRow.font = { name: 'Arial', size: 10, bold: true };
-  paidRow.getCell(7).alignment = { horizontal: 'right' };
-  paidRow.getCell(8).numFmt = '"₱"#,##0.00';
-  paidRow.getCell(8).font = { name: 'Arial', size: 10, bold: true, color: { argb: '047857' } };
+  paidRow.getCell(8).alignment = { horizontal: 'right' };
+  paidRow.getCell(9).numFmt = '"₱"#,##0.00';
+  paidRow.getCell(9).font = { name: 'Arial', size: 10, bold: true, color: { argb: '047857' } };
 
-  const unpaidRow = sheet.addRow(['', '', '', '', '', '', 'TOTAL RECEIVABLES', totalReceivables, '']);
+  const unpaidRow = sheet.addRow(['', '', '', '', '', '', '', 'TOTAL RECEIVABLES', totalReceivables, '']);
   unpaidRow.font = { name: 'Arial', size: 10, bold: true };
-  unpaidRow.getCell(7).alignment = { horizontal: 'right' };
-  unpaidRow.getCell(8).numFmt = '"₱"#,##0.00';
-  unpaidRow.getCell(8).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'B91C1C' } };
+  unpaidRow.getCell(8).alignment = { horizontal: 'right' };
+  unpaidRow.getCell(9).numFmt = '"₱"#,##0.00';
+  unpaidRow.getCell(9).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'B91C1C' } };
 
   sheet.columns.forEach(column => {
     let maxLength = 10;
