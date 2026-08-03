@@ -13,12 +13,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
-// Awtomatikong gagawa ng database para sa Invoices kung wala pa
+// Awtomatikong gagawa ng database para sa Invoices kung wala pa o sirang JSON
 if (!fs.existsSync(DB_FILE)) {
   fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
   console.log('📁 Gumawa ng bagong database.json dahil wala pa.');
 } else {
-  console.log('✅ Nahanap ang umiiral na database.json.');
+  try {
+    const testParse = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    if (!Array.isArray(testParse)) {
+      fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
+    }
+  } catch (e) {
+    fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
+  }
+  console.log('✅ Nahanap at na-verify ang database.json.');
 }
 
 // Awtomatikong gagawa ng database para sa Admins kung wala pa
@@ -33,7 +41,10 @@ if (!fs.existsSync(ADMIN_FILE)) {
 // Helper functions
 const getDB = () => {
   try {
-    let db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    let raw = fs.readFileSync(DB_FILE, 'utf8');
+    let db = JSON.parse(raw);
+    if (!Array.isArray(db)) db = [];
+    
     let updated = false;
     const today = new Date();
 
@@ -635,17 +646,22 @@ app.get('/dashboard', (req, res) => {
         }
 
         async function loadData() {
+          var tbody = document.getElementById('tableBody');
           try {
-            const res = await fetch('/api/invoices');
+            // Iwas sa Browser Cache sa pamamagitan ng timestamp
+            const res = await fetch('/api/invoices?t=' + Date.now(), { cache: 'no-store' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+
             allInvoices = await res.json();
-            
+            if (!Array.isArray(allInvoices)) allInvoices = [];
+
             var total = allInvoices.length;
-            var paidCount = allInvoices.filter(function(d) { return d.status === 'paid'; }).length;
-            var unpaidCount = allInvoices.filter(function(d) { return d.status === 'unpaid'; }).length;
-            var disconnectedCount = allInvoices.filter(function(d) { return d.status === 'disconnected'; }).length;
+            var paidCount = allInvoices.filter(function(d) { return d && d.status === 'paid'; }).length;
+            var unpaidCount = allInvoices.filter(function(d) { return d && d.status === 'unpaid'; }).length;
+            var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             
-            var totalPaidAmount = allInvoices.filter(function(d) { return d.status === 'paid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
-            var totalUnpaidAmount = allInvoices.filter(function(d) { return d.status === 'unpaid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
+            var totalPaidAmount = allInvoices.filter(function(d) { return d && d.status === 'paid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
+            var totalUnpaidAmount = allInvoices.filter(function(d) { return d && d.status === 'unpaid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
 
             document.getElementById('summary').innerHTML = 
               '<div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 shadow-sm">' +
@@ -665,11 +681,12 @@ app.get('/dashboard', (req, res) => {
                 '<div class="text-xl font-bold text-yellow-600">' + disconnectedCount + '</div>' +
               '</div>';
 
-            var tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
             
             var filtered = allInvoices.filter(function(item) {
-              var matchesStatus = (currentFilter === 'all' || item.status === currentFilter);
+              if (!item) return false;
+              var st = (item.status || 'unpaid').toLowerCase();
+              var matchesStatus = (currentFilter === 'all' || st === currentFilter);
               var nameStr = (item.name || '').toLowerCase();
               var addrStr = (item.address || '').toLowerCase();
               var collStr = (item.collector || '').toLowerCase();
@@ -687,20 +704,22 @@ app.get('/dashboard', (req, res) => {
             });
             
             if (filtered.length === 0) {
-              tbody.innerHTML = '<tr><td colspan="12" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>';
+              tbody.innerHTML = '<tr><td colspan="12" class="p-6 text-center text-gray-500 font-medium bg-gray-50">Walang nahanap na customer record. Magdagdag sa itaas upang magkaroon ng data.</td></tr>';
               return;
             }
 
             filtered.forEach(function(item) {
+              if (!item) return;
               var tr = document.createElement('tr');
               tr.className = 'border-b hover:bg-gray-50';
               
+              var itemStatus = (item.status || 'unpaid').toLowerCase();
               var statusBadgeClass = 'bg-gray-100 text-gray-700';
-              if (item.status === 'paid') statusBadgeClass = 'bg-green-100 text-green-700';
-              else if (item.status === 'unpaid') statusBadgeClass = 'bg-red-100 text-red-700';
-              else if (item.status === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800';
-              else if (item.status === 'reconnected') statusBadgeClass = 'bg-blue-100 text-blue-700';
-              else if (item.status === 'pullout') statusBadgeClass = 'bg-purple-100 text-purple-800';
+              if (itemStatus === 'paid') statusBadgeClass = 'bg-green-100 text-green-700';
+              else if (itemStatus === 'unpaid') statusBadgeClass = 'bg-red-100 text-red-700';
+              else if (itemStatus === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800';
+              else if (itemStatus === 'reconnected') statusBadgeClass = 'bg-blue-100 text-blue-700';
+              else if (itemStatus === 'pullout') statusBadgeClass = 'bg-purple-100 text-purple-800';
 
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
@@ -709,14 +728,14 @@ app.get('/dashboard', (req, res) => {
               var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
 
               var actionButtons = '';
-              if (item.status !== 'paid') {
+              if (itemStatus !== 'paid') {
                 actionButtons += '<button onclick="markPaid(\'' + item.id + '\')" class="text-green-600 hover:underline font-medium text-xs mr-2">Mark Paid</button>';
               }
               actionButtons += '<button onclick="openEditModal(\'' + item.id + '\')" class="text-blue-600 hover:underline font-medium text-xs mr-2">Edit</button>';
               actionButtons += '<button onclick="deleteCustomer(\'' + item.id + '\')" class="text-red-600 hover:underline font-medium text-xs">Delete</button>';
 
               tr.innerHTML = 
-                '<td class="p-3 text-gray-600 font-mono">' + item.id + '</td>' +
+                '<td class="p-3 text-gray-600 font-mono font-bold">' + (item.id !== undefined ? item.id : '') + '</td>' +
                 '<td class="p-3 font-medium text-gray-800">' + (item.name || '') + '</td>' +
                 '<td class="p-3 text-gray-600">' + (item.address || '') + '</td>' +
                 '<td class="p-3 text-gray-600">' + (item.plan || '') + '</td>' +
@@ -728,7 +747,7 @@ app.get('/dashboard', (req, res) => {
                 '<td class="p-3 text-emerald-600 font-bold">₱' + totalDue.toFixed(2) + '</td>' +
                 '<td class="p-3">' +
                   '<span class="px-2.5 py-1 text-xs rounded-full font-semibold ' + statusBadgeClass + '">' +
-                    (item.status === 'pullout' ? 'PULL OUT' : (item.status || '').toUpperCase()) +
+                    (itemStatus === 'pullout' ? 'PULL OUT' : itemStatus.toUpperCase()) +
                   '</span>' +
                 '</td>' +
                 '<td class="p-3 flex items-center">' + actionButtons + '</td>';
@@ -737,6 +756,9 @@ app.get('/dashboard', (req, res) => {
             });
           } catch (err) {
             console.error('Error loading data:', err);
+            if (tbody) {
+              tbody.innerHTML = '<tr><td colspan="12" class="p-6 text-center text-red-500 font-semibold bg-red-50">May error sa pag-load ng data: ' + err.message + '</td></tr>';
+            }
           }
         }
 
@@ -814,7 +836,7 @@ app.get('/dashboard', (req, res) => {
         }
 
         function openEditModal(id) {
-          var item = allInvoices.find(function(inv) { return inv.id.toString() === id.toString(); });
+          var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
           if (!item) return;
 
           document.getElementById('editId').value = item.id;
@@ -940,6 +962,7 @@ app.get('/dashboard', (req, res) => {
           }
         }
 
+        // Unang pagpapatakbo pagka-load ng pahina
         loadData();
       </script>
     </body>
@@ -980,6 +1003,7 @@ app.delete('/api/admins/:id', (req, res) => {
 
 // ================= INVOICES CRUD API =================
 app.get('/api/invoices', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.json(getDB());
 });
 
@@ -992,7 +1016,6 @@ app.post('/api/invoices', (req, res) => {
       return res.status(400).json({ error: "Mayroon nang ganyang Customer ID." });
     }
 
-    // Siguradong nakukuha ang pinakamataas na numeric ID
     let maxNumericId = 0;
     db.forEach(item => {
       const num = parseInt(item.id, 10);
@@ -1003,7 +1026,6 @@ app.post('/api/invoices', (req, res) => {
 
     const finalId = customId ? (isNaN(customId) ? customId : Number(customId)) : (maxNumericId + 1);
 
-    // Auto Due Date Calculation
     let finalDueDate = req.body.dueDate;
     if (!finalDueDate) {
       const today = new Date();
@@ -1152,7 +1174,7 @@ app.get('/api/export-excel', async (req, res) => {
       item.previousBalance || 0,
       (item.previousBalanceMonths || 0) + ' mos',
       totalDue,
-      item.status === 'pullout' ? 'PULL OUT' : item.status.toUpperCase()
+      item.status === 'pullout' ? 'PULL OUT' : (item.status || '').toUpperCase()
     ]);
 
     row.font = { name: 'Arial', size: 10 };
