@@ -13,10 +13,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
-// Awtomatikong gagawa ng database para sa Invoices kung wala pa o sirang JSON
+// Siguraduhing may database.json
 if (!fs.existsSync(DB_FILE)) {
   fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
-  console.log('📁 Gumawa ng bagong database.json dahil wala pa.');
+  console.log('📁 Gumawa ng bagong database.json.');
 } else {
   try {
     const testParse = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
@@ -26,19 +26,15 @@ if (!fs.existsSync(DB_FILE)) {
   } catch (e) {
     fs.writeFileSync(DB_FILE, JSON.stringify([], null, 2));
   }
-  console.log('✅ Nahanap at na-verify ang database.json.');
 }
 
-// Awtomatikong gagawa ng database para sa Admins kung wala pa
+// Siguraduhing may admins.json
 if (!fs.existsSync(ADMIN_FILE)) {
   const initialAdmins = [{ id: 1, username: "admin", password: "admin123" }];
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
-  console.log('📁 Gumawa ng bagong admins.json dahil wala pa.');
-} else {
-  console.log('✅ Nahanap ang umiiral na admins.json.');
 }
 
-// Helper functions
+// Helper Functions para sa Database
 const getDB = () => {
   try {
     let raw = fs.readFileSync(DB_FILE, 'utf8');
@@ -49,7 +45,7 @@ const getDB = () => {
     const today = new Date();
 
     db.forEach(item => {
-      if (!item.dueDate) return;
+      if (!item || !item.dueDate) return;
       const due = new Date(item.dueDate);
       if (isNaN(due.getTime())) return;
 
@@ -100,7 +96,7 @@ app.get('/', (req, res) => {
       <div class="bg-white/15 backdrop-blur-md border border-white/20 rounded-2xl p-8 max-w-md w-full shadow-2xl text-white">
         <div class="text-center mb-6">
           <div class="bg-white p-2 rounded-full w-28 h-28 mx-auto mb-3 flex items-center justify-center border-2 border-blue-500 shadow-lg overflow-hidden">
-            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full">
+            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full" onerror="this.src='https://via.placeholder.com/100?text=RTECH'">
           </div>
           <h1 class="text-2xl font-bold tracking-wide mt-2">RTECH Billing System</h1>
           <p class="text-xs text-gray-300 mt-1">Sign in to your admin account</p>
@@ -161,7 +157,6 @@ app.get('/', (req, res) => {
   `);
 });
 
-// LOGIN API
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   const admins = getAdmins();
@@ -188,7 +183,7 @@ app.get('/customer', (req, res) => {
       <div class="bg-white/15 backdrop-blur-md border border-white/20 rounded-2xl p-8 max-w-lg w-full shadow-2xl text-white">
         <div class="text-center mb-6">
           <div class="bg-white p-2 rounded-full w-20 h-20 mx-auto mb-3 flex items-center justify-center border-2 border-blue-500 shadow-lg overflow-hidden">
-            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full">
+            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full" onerror="this.src='https://via.placeholder.com/100?text=RTECH'">
           </div>
           <h1 class="text-xl font-bold tracking-wide">Customer Billing Portal</h1>
           <p class="text-xs text-gray-300 mt-1">Ilagay ang iyong Customer ID para makita ang iyong account status.</p>
@@ -274,9 +269,9 @@ app.get('/customer', (req, res) => {
               errDiv.classList.add('hidden');
               document.getElementById('resId').textContent = data.id;
               document.getElementById('resName').textContent = data.name;
-              document.getElementById('resAddress').textContent = data.address || 'Walang address';
+              document.getElementById('resAddress').textContent = data.address || 'SAN AGUSTIN';
               document.getElementById('resPlan').textContent = data.plan;
-              document.getElementById('resCollector').textContent = data.collector || 'N/A';
+              document.getElementById('resCollector').textContent = data.collector || 'Jefford';
               document.getElementById('resDueDate').textContent = data.dueDate;
               document.getElementById('resAmount').textContent = '₱' + (Number(data.amount) || 0).toFixed(2);
               
@@ -302,39 +297,11 @@ app.get('/customer', (req, res) => {
                 statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
               }
 
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const due = new Date(data.dueDate);
-              due.setHours(0, 0, 0, 0);
-              const diffTime = due - today;
-              const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-
-              if (data.status !== 'paid') {
-                if (diffDays === 0) {
-                  reminderBox.textContent = '🚨 BABALA: Ngayon na ang iyong Due Date! Mangyaring bayaran na ang kabuuang halaga.';
-                  reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
-                  reminderBox.classList.remove('hidden');
-                } else if (diffDays > 0 && diffDays <= 3) {
-                  reminderBox.textContent = '⚠️ Paalala: Mayroon nalang ' + diffDays + ' araw bago ang iyong due date (' + data.dueDate + ').';
-                  reminderBox.className = 'bg-yellow-500/20 border border-yellow-500 text-yellow-200 text-xs p-3 rounded mb-4 text-center font-medium shadow';
-                  reminderBox.classList.remove('hidden');
-                } else if (diffDays < 0) {
-                  reminderBox.textContent = '❌ OVERDUE: Lumipas na ang iyong due date noong ' + data.dueDate + '.';
-                  reminderBox.className = 'bg-red-500/30 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center font-bold shadow';
-                  reminderBox.classList.remove('hidden');
-                } else {
-                  reminderBox.classList.add('hidden');
-                }
-              } else {
-                reminderBox.classList.add('hidden');
-              }
-
               resultArea.classList.remove('hidden');
             } else {
               errDiv.textContent = data.error || 'Hindi nahanap ang Customer ID na ito.';
               errDiv.classList.remove('hidden');
               resultArea.classList.add('hidden');
-              reminderBox.classList.add('hidden');
             }
           } catch (err) {
             errDiv.textContent = 'May problemang naganap sa koneksyon.';
@@ -349,7 +316,7 @@ app.get('/customer', (req, res) => {
 
 app.get('/api/customer/:id', (req, res) => {
   const db = getDB();
-  const customer = db.find(inv => inv.id.toString() === req.params.id);
+  const customer = db.find(inv => String(inv.id).toLowerCase() === String(req.params.id).toLowerCase());
   if (!customer) {
     return res.status(404).json({ error: 'Walang nahanap na record para sa Customer ID na ito.' });
   }
@@ -377,7 +344,7 @@ app.get('/dashboard', (req, res) => {
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b pb-4 gap-4">
           <div class="flex items-center gap-3">
             <div class="bg-white p-1.5 rounded-full w-16 h-16 flex items-center justify-center border border-blue-500 shadow overflow-hidden">
-              <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full">
+              <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full" onerror="this.src='https://via.placeholder.com/100?text=RTECH'">
             </div>
             <div>
               <h1 class="text-2xl font-bold text-gray-800">Internet Billing & Payment Tracker</h1>
@@ -425,12 +392,11 @@ app.get('/dashboard', (req, res) => {
           </div>
 
           <!-- Add Customer Form -->
-          <div class="flex flex-wrap gap-2 items-center">
-            <input type="text" id="newId" placeholder="ID (Auto)" class="border px-2 py-1 rounded text-sm w-20">
-            <input type="text" id="newName" placeholder="Pangalan" class="border px-2 py-1 rounded text-sm w-28">
+          <div class="flex flex-wrap gap-2 items-center bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+            <input type="text" id="newId" placeholder="ID (Auto)" class="border px-2.5 py-1.5 rounded text-sm w-24 focus:ring-1 focus:ring-blue-500">
+            <input type="text" id="newName" placeholder="Pangalan *" required class="border px-2.5 py-1.5 rounded text-sm w-36 font-medium focus:ring-1 focus:ring-blue-500">
             
-            <select id="newAddress" class="border px-2 py-1 rounded text-sm bg-white">
-              <option value="">-- Address --</option>
+            <select id="newAddress" class="border px-2 py-1.5 rounded text-sm bg-white">
               <option value="SAN AGUSTIN">SAN AGUSTIN</option>
               <option value="LIBERTAD">LIBERTAD</option>
               <option value="BANGUIAN">BANGUIAN</option>
@@ -449,20 +415,18 @@ app.get('/dashboard', (req, res) => {
               <option value="BATAL">BATAL</option>
             </select>
 
-            <select id="newPlan" class="border px-2 py-1 rounded text-sm bg-white">
-              <option value="">-- Plan --</option>
+            <select id="newPlan" class="border px-2 py-1.5 rounded text-sm bg-white">
               <option value="50Mbps">50Mbps</option>
               <option value="75Mbps">75Mbps</option>
               <option value="100Mbps">100Mbps</option>
             </select>
 
-            <select id="newCollector" class="border px-2 py-1 rounded text-sm bg-white font-semibold text-blue-900">
+            <select id="newCollector" class="border px-2 py-1.5 rounded text-sm bg-white font-semibold text-blue-900">
               <option value="Jefford">Jefford</option>
               <option value="Jake">Jake</option>
             </select>
 
-            <select id="newAmount" class="border px-2 py-1 rounded text-sm bg-white">
-              <option value="">-- Monthly --</option>
+            <select id="newAmount" class="border px-2 py-1.5 rounded text-sm bg-white font-medium">
               <option value="800">₱800</option>
               <option value="1000">₱1000</option>
               <option value="1200">₱1200</option>
@@ -470,16 +434,18 @@ app.get('/dashboard', (req, res) => {
               <option value="2000">₱2000</option>
             </select>
 
-            <input type="date" id="newDueDate" class="border px-2 py-1 rounded text-sm w-36">
-            <button onclick="addSubscriber()" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 font-medium shadow">+ Add Customer</button>
+            <input type="date" id="newDueDate" class="border px-2 py-1.5 rounded text-sm w-36">
+            <button onclick="addSubscriber()" class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 font-semibold shadow transition duration-150 flex items-center gap-1">
+              ➕ Add Customer
+            </button>
           </div>
         </div>
 
         <!-- Data Table -->
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto rounded-lg border border-gray-200">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-gray-100 border-b text-gray-600 text-xs uppercase">
+              <tr class="bg-gray-100 border-b text-gray-700 text-xs font-bold uppercase tracking-wider">
                 <th class="p-3">ID</th>
                 <th class="p-3">Customer Name</th>
                 <th class="p-3">Address</th>
@@ -494,7 +460,7 @@ app.get('/dashboard', (req, res) => {
                 <th class="p-3">Actions</th>
               </tr>
             </thead>
-            <tbody id="tableBody" class="text-sm"></tbody>
+            <tbody id="tableBody" class="text-sm divide-y divide-gray-200"></tbody>
           </table>
         </div>
       </div>
@@ -513,7 +479,6 @@ app.get('/dashboard', (req, res) => {
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Address</label>
               <select id="editAddress" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
-                <option value="">-- Pumili ng Address --</option>
                 <option value="SAN AGUSTIN">SAN AGUSTIN</option>
                 <option value="LIBERTAD">LIBERTAD</option>
                 <option value="BANGUIAN">BANGUIAN</option>
@@ -536,7 +501,6 @@ app.get('/dashboard', (req, res) => {
               <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Plan</label>
                 <select id="editPlan" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
-                  <option value="">-- Plan --</option>
                   <option value="50Mbps">50Mbps</option>
                   <option value="75Mbps">75Mbps</option>
                   <option value="100Mbps">100Mbps</option>
@@ -554,7 +518,6 @@ app.get('/dashboard', (req, res) => {
               <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Monthly Amount</label>
                 <select id="editAmount" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
-                  <option value="">-- Monthly --</option>
                   <option value="800">₱800</option>
                   <option value="1000">₱1000</option>
                   <option value="1200">₱1200</option>
@@ -648,9 +611,8 @@ app.get('/dashboard', (req, res) => {
         async function loadData() {
           var tbody = document.getElementById('tableBody');
           try {
-            // Iwas sa Browser Cache sa pamamagitan ng timestamp
             const res = await fetch('/api/invoices?t=' + Date.now(), { cache: 'no-store' });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
+            if (!res.ok) throw new Error('Server response error: ' + res.status);
 
             allInvoices = await res.json();
             if (!Array.isArray(allInvoices)) allInvoices = [];
@@ -704,22 +666,22 @@ app.get('/dashboard', (req, res) => {
             });
             
             if (filtered.length === 0) {
-              tbody.innerHTML = '<tr><td colspan="12" class="p-6 text-center text-gray-500 font-medium bg-gray-50">Walang nahanap na customer record. Magdagdag sa itaas upang magkaroon ng data.</td></tr>';
+              tbody.innerHTML = '<tr><td colspan="12" class="p-8 text-center text-gray-500 font-medium bg-gray-50">⚡ Walang nahanap na customer record. Magdagdag ng customer sa itaas upang lumabas dito.</td></tr>';
               return;
             }
 
             filtered.forEach(function(item) {
               if (!item) return;
               var tr = document.createElement('tr');
-              tr.className = 'border-b hover:bg-gray-50';
+              tr.className = 'border-b hover:bg-gray-50 transition duration-150';
               
               var itemStatus = (item.status || 'unpaid').toLowerCase();
               var statusBadgeClass = 'bg-gray-100 text-gray-700';
-              if (itemStatus === 'paid') statusBadgeClass = 'bg-green-100 text-green-700';
-              else if (itemStatus === 'unpaid') statusBadgeClass = 'bg-red-100 text-red-700';
-              else if (itemStatus === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800';
-              else if (itemStatus === 'reconnected') statusBadgeClass = 'bg-blue-100 text-blue-700';
-              else if (itemStatus === 'pullout') statusBadgeClass = 'bg-purple-100 text-purple-800';
+              if (itemStatus === 'paid') statusBadgeClass = 'bg-green-100 text-green-700 border border-green-300';
+              else if (itemStatus === 'unpaid') statusBadgeClass = 'bg-red-100 text-red-700 border border-red-300';
+              else if (itemStatus === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800 border border-yellow-300';
+              else if (itemStatus === 'reconnected') statusBadgeClass = 'bg-blue-100 text-blue-700 border border-blue-300';
+              else if (itemStatus === 'pullout') statusBadgeClass = 'bg-purple-100 text-purple-800 border border-purple-300';
 
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
@@ -729,24 +691,24 @@ app.get('/dashboard', (req, res) => {
 
               var actionButtons = '';
               if (itemStatus !== 'paid') {
-                actionButtons += '<button onclick="markPaid(\'' + item.id + '\')" class="text-green-600 hover:underline font-medium text-xs mr-2">Mark Paid</button>';
+                actionButtons += '<button onclick="markPaid(\'' + item.id + '\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
               }
-              actionButtons += '<button onclick="openEditModal(\'' + item.id + '\')" class="text-blue-600 hover:underline font-medium text-xs mr-2">Edit</button>';
-              actionButtons += '<button onclick="deleteCustomer(\'' + item.id + '\')" class="text-red-600 hover:underline font-medium text-xs">Delete</button>';
+              actionButtons += '<button onclick="openEditModal(\'' + item.id + '\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
+              actionButtons += '<button onclick="deleteCustomer(\'' + item.id + '\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
 
               tr.innerHTML = 
-                '<td class="p-3 text-gray-600 font-mono font-bold">' + (item.id !== undefined ? item.id : '') + '</td>' +
-                '<td class="p-3 font-medium text-gray-800">' + (item.name || '') + '</td>' +
-                '<td class="p-3 text-gray-600">' + (item.address || '') + '</td>' +
-                '<td class="p-3 text-gray-600">' + (item.plan || '') + '</td>' +
-                '<td class="p-3 font-semibold text-blue-900">' + collectorName + '</td>' +
+                '<td class="p-3 text-gray-700 font-mono font-bold">' + (item.id !== undefined ? item.id : '') + '</td>' +
+                '<td class="p-3 font-semibold text-gray-900">' + (item.name || '') + '</td>' +
+                '<td class="p-3 text-gray-600">' + (item.address || 'SAN AGUSTIN') + '</td>' +
+                '<td class="p-3 text-gray-600 font-medium">' + (item.plan || '50Mbps') + '</td>' +
+                '<td class="p-3 font-bold text-blue-900">' + collectorName + '</td>' +
                 '<td class="p-3 text-gray-600">' + (item.dueDate || '') + '</td>' +
-                '<td class="p-3 text-gray-800">₱' + amount.toFixed(2) + '</td>' +
-                '<td class="p-3 text-red-600 font-medium">₱' + prevBal.toFixed(2) + '</td>' +
+                '<td class="p-3 text-gray-800 font-medium">₱' + amount.toFixed(2) + '</td>' +
+                '<td class="p-3 text-red-600 font-semibold">₱' + prevBal.toFixed(2) + '</td>' +
                 '<td class="p-3 text-gray-600 font-medium">' + prevMos + ' mos</td>' +
-                '<td class="p-3 text-emerald-600 font-bold">₱' + totalDue.toFixed(2) + '</td>' +
+                '<td class="p-3 text-emerald-600 font-bold text-base">₱' + totalDue.toFixed(2) + '</td>' +
                 '<td class="p-3">' +
-                  '<span class="px-2.5 py-1 text-xs rounded-full font-semibold ' + statusBadgeClass + '">' +
+                  '<span class="px-2.5 py-1 text-xs rounded-full font-bold uppercase ' + statusBadgeClass + '">' +
                     (itemStatus === 'pullout' ? 'PULL OUT' : itemStatus.toUpperCase()) +
                   '</span>' +
                 '</td>' +
@@ -757,7 +719,7 @@ app.get('/dashboard', (req, res) => {
           } catch (err) {
             console.error('Error loading data:', err);
             if (tbody) {
-              tbody.innerHTML = '<tr><td colspan="12" class="p-6 text-center text-red-500 font-semibold bg-red-50">May error sa pag-load ng data: ' + err.message + '</td></tr>';
+              tbody.innerHTML = '<tr><td colspan="12" class="p-6 text-center text-red-500 font-semibold bg-red-50">❌ Error sa pag-load ng data: ' + err.message + '</td></tr>';
             }
           }
         }
@@ -780,52 +742,48 @@ app.get('/dashboard', (req, res) => {
           try {
             var idInput = document.getElementById('newId').value.trim();
             var name = document.getElementById('newName').value.trim();
-            var address = document.getElementById('newAddress').value;
-            var plan = document.getElementById('newPlan').value;
-            var collector = document.getElementById('newCollector').value;
-            var rawAmount = document.getElementById('newAmount').value;
-            var amount = parseFloat(rawAmount);
+            var address = document.getElementById('newAddress').value || "SAN AGUSTIN";
+            var plan = document.getElementById('newPlan').value || "50Mbps";
+            var collector = document.getElementById('newCollector').value || "Jefford";
+            var rawAmount = document.getElementById('newAmount').value || "800";
+            var amount = parseFloat(rawAmount) || 800;
             var dueDate = document.getElementById('newDueDate').value;
 
             if (!name) {
-              alert('Mangyaring ilagay ang Pangalan ng Customer.');
-              return;
-            }
-            if (!address) {
-              alert('Mangyaring pumili ng Address.');
-              return;
-            }
-            if (!plan) {
-              alert('Mangyaring pumili ng Internet Plan.');
-              return;
-            }
-            if (isNaN(amount)) {
-              alert('Mangyaring pumili ng Monthly Amount.');
+              alert('⚠️ Mangyaring ilagay ang Pangalan ng Customer.');
+              document.getElementById('newName').focus();
               return;
             }
 
             var res = await fetch('/api/invoices', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: idInput, name: name, address: address, plan: plan, collector: collector, amount: amount, dueDate: dueDate })
+              body: JSON.stringify({
+                id: idInput,
+                name: name,
+                address: address,
+                plan: plan,
+                collector: collector,
+                amount: amount,
+                dueDate: dueDate
+              })
             });
 
             var data = await res.json();
 
             if (res.ok) {
+              // I-clear ang mga input form
               document.getElementById('newId').value = '';
               document.getElementById('newName').value = '';
-              document.getElementById('newAddress').value = '';
-              document.getElementById('newPlan').value = '';
-              document.getElementById('newAmount').value = '';
               document.getElementById('newDueDate').value = '';
 
+              // I-reset ang filter at search bar para makita agad sa listahan
               currentFilter = 'all';
               searchQuery = '';
               document.getElementById('searchInput').value = '';
 
               await loadData();
-              alert('✅ Tagumpay na naidagdag si ' + name + '!');
+              alert('✅ Tagumpay na naidagdag si "' + name + '"!');
             } else {
               alert('❌ Error: ' + (data.error || 'May problemang naganap sa pag-save.'));
             }
@@ -841,11 +799,11 @@ app.get('/dashboard', (req, res) => {
 
           document.getElementById('editId').value = item.id;
           document.getElementById('editName').value = item.name || '';
-          document.getElementById('editAddress').value = item.address || '';
-          document.getElementById('editPlan').value = item.plan || '';
+          document.getElementById('editAddress').value = item.address || 'SAN AGUSTIN';
+          document.getElementById('editPlan').value = item.plan || '50Mbps';
           document.getElementById('editCollector').value = item.collector ? item.collector.split(' ')[0] : 'Jefford';
           document.getElementById('editDueDate').value = item.dueDate || '';
-          document.getElementById('editAmount').value = item.amount || '';
+          document.getElementById('editAmount').value = item.amount || 800;
           document.getElementById('editPrevBalance').value = item.previousBalance || 0;
           document.getElementById('editPrevBalanceMonths').value = item.previousBalanceMonths || 0;
           document.getElementById('editStatus').value = item.status || 'unpaid';
@@ -869,15 +827,25 @@ app.get('/dashboard', (req, res) => {
             var previousBalanceMonths = parseInt(document.getElementById('editPrevBalanceMonths').value, 10);
             var status = document.getElementById('editStatus').value;
 
-            if (!name || !address || !plan || !dueDate || isNaN(amount) || isNaN(previousBalance)) {
-              alert('Paki-punuan ang lahat ng fields nang tama.');
+            if (!name) {
+              alert('Paki-punuan ang pangalan ng customer.');
               return;
             }
 
             await fetch('/api/invoices/' + id, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: name, address: address, plan: plan, collector: collector, dueDate: dueDate, amount: amount, previousBalance: previousBalance, previousBalanceMonths: previousBalanceMonths, status: status })
+              body: JSON.stringify({
+                name: name,
+                address: address,
+                plan: plan,
+                collector: collector,
+                dueDate: dueDate,
+                amount: amount,
+                previousBalance: previousBalance,
+                previousBalanceMonths: previousBalanceMonths,
+                status: status
+              })
             });
 
             closeEditModal();
@@ -1013,7 +981,7 @@ app.post('/api/invoices', (req, res) => {
     const customId = req.body.id ? String(req.body.id).trim() : null;
 
     if (customId && db.some(inv => String(inv.id).toLowerCase() === customId.toLowerCase())) {
-      return res.status(400).json({ error: "Mayroon nang ganyang Customer ID." });
+      return res.status(400).json({ error: "Mayroon nang umiiral na Customer ID na " + customId + ". Gumamit ng iba." });
     }
 
     let maxNumericId = 0;
@@ -1046,11 +1014,11 @@ app.post('/api/invoices', (req, res) => {
 
     const newItem = {
       id: finalId,
-      name: req.body.name ? req.body.name.trim() : "",
-      address: req.body.address || "",
-      plan: req.body.plan || "",
+      name: req.body.name ? req.body.name.trim() : "Untitled Customer",
+      address: req.body.address || "SAN AGUSTIN",
+      plan: req.body.plan || "50Mbps",
       collector: req.body.collector || "Jefford",
-      amount: parseFloat(req.body.amount) || 0,
+      amount: parseFloat(req.body.amount) || 800,
       previousBalance: 0.00,
       previousBalanceMonths: 0,
       status: "unpaid",
@@ -1068,7 +1036,7 @@ app.post('/api/invoices', (req, res) => {
 
 app.put('/api/invoices/:id/pay', (req, res) => {
   const db = getDB();
-  const item = db.find(inv => inv.id == req.params.id);
+  const item = db.find(inv => String(inv.id).toLowerCase() === String(req.params.id).toLowerCase());
   if (!item) return res.status(404).json({ error: "Hindi nahanap ang record" });
   item.status = "paid";
   item.previousBalance = 0.00;
@@ -1079,13 +1047,13 @@ app.put('/api/invoices/:id/pay', (req, res) => {
 
 app.put('/api/invoices/:id', (req, res) => {
   const db = getDB();
-  const item = db.find(inv => inv.id == req.params.id);
+  const item = db.find(inv => String(inv.id).toLowerCase() === String(req.params.id).toLowerCase());
   if (!item) return res.status(404).json({ error: "Hindi nahanap ang record" });
   
   item.name = req.body.name || item.name;
-  item.address = req.body.address !== undefined ? req.body.address : item.address;
+  item.address = req.body.address || item.address;
   item.plan = req.body.plan || item.plan;
-  item.collector = req.body.collector || item.collector || "Jefford";
+  item.collector = req.body.collector || item.collector;
   item.dueDate = req.body.dueDate || item.dueDate;
   item.amount = req.body.amount !== undefined ? parseFloat(req.body.amount) : item.amount;
   item.previousBalance = req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : (item.previousBalance || 0);
@@ -1098,7 +1066,7 @@ app.put('/api/invoices/:id', (req, res) => {
 
 app.delete('/api/invoices/:id', (req, res) => {
   let db = getDB();
-  const index = db.findIndex(inv => inv.id == req.params.id);
+  const index = db.findIndex(inv => String(inv.id).toLowerCase() === String(req.params.id).toLowerCase());
   if (index === -1) return res.status(404).json({ error: "Hindi nahanap ang record" });
   
   const deleted = db.splice(index, 1);
@@ -1178,7 +1146,6 @@ app.get('/api/export-excel', async (req, res) => {
     ]);
 
     row.font = { name: 'Arial', size: 10 };
-    
     const isEven = index % 2 === 0;
     const rowBgColor = isEven ? 'F9FAFB' : 'FFFFFF';
 
@@ -1241,5 +1208,5 @@ app.get('/api/export-excel', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log("RTECH Billing Server ay tumatakbo sa http://localhost:" + PORT);
+  console.log("🚀 RTECH Billing Server ay tumatakbo sa http://localhost:" + PORT);
 });
