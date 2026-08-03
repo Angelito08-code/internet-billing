@@ -783,7 +783,6 @@ app.get('/dashboard', (req, res) => {
               document.getElementById('searchInput').value = '';
 
               await loadData();
-              alert('✅ Tagumpay na naidagdag si "' + name + '"!');
             } else {
               alert('❌ Error: ' + (data.error || 'May problemang naganap sa pag-save.'));
             }
@@ -1027,10 +1026,10 @@ app.post('/api/invoices', (req, res) => {
 
     db.push(newItem);
     saveDB(db);
-    res.json(newItem);
+    return res.json(newItem);
   } catch (err) {
     console.error("Error sa pag-save ng customer:", err);
-    res.status(500).json({ error: "Hindi ma-save ang customer: " + err.message });
+    return res.status(500).json({ error: "Hindi ma-save ang customer: " + err.message });
   }
 });
 
