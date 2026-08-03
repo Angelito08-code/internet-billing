@@ -359,7 +359,7 @@ app.get('/dashboard', (req, res) => {
             </div>
           </div>
 
-          <!-- PINAGSAMANG EXPORT BUTTONS -->
+          <!-- EXPORT BUTTONS -->
           <div class="flex items-center gap-2 flex-wrap">
             <a href="/api/export-excel?collector=jefford" class="bg-emerald-600 text-white px-3 py-1.5 rounded text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1 no-underline shadow">
               📊 Export Jefford
@@ -431,7 +431,6 @@ app.get('/dashboard', (req, res) => {
               <option value="100Mbps">100Mbps</option>
             </select>
 
-            <!-- PINAGSAMANG COLLECTOR OPTIONS -->
             <select id="newCollector" class="border px-2 py-1 rounded text-sm bg-white font-semibold text-blue-900">
               <option value="Jefford">Jefford</option>
               <option value="Jake">Jake</option>
@@ -602,6 +601,7 @@ app.get('/dashboard', (req, res) => {
       <script>
         let currentFilter = 'all';
         let searchQuery = '';
+        let allInvoices = []; // Global storage para sa invoices
 
         function logout() {
           localStorage.removeItem('isLoggedIn');
@@ -621,93 +621,107 @@ app.get('/dashboard', (req, res) => {
         }
 
         async function loadData() {
-          const res = await fetch('/api/invoices');
-          const data = await res.json();
-          
-          const total = data.length;
-          const paidCount = data.filter(d => d.status === 'paid').length;
-          const unpaidCount = data.filter(d => d.status === 'unpaid').length;
-          const disconnectedCount = data.filter(d => d.status === 'disconnected').length;
-          
-          const totalPaidAmount = data.filter(d => d.status === 'paid').reduce((sum, d) => sum + d.amount + (d.previousBalance || 0), 0);
-          const totalUnpaidAmount = data.filter(d => d.status === 'unpaid').reduce((sum, d) => sum + d.amount + (d.previousBalance || 0), 0);
-
-          document.getElementById('summary').innerHTML = \`
-            <div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 shadow-sm">
-              <div class="text-gray-500 text-xs font-medium">Total Subscribers</div>
-              <div class="text-xl font-bold">\${total}</div>
-            </div>
-            <div class="p-4 bg-gray-50 rounded border-l-4 border-green-500 shadow-sm">
-              <div class="text-gray-500 text-xs font-medium">Paid (Total Collected)</div>
-              <div class="text-xl font-bold text-green-600">₱\${totalPaidAmount.toFixed(2)}</div>
-            </div>
-            <div class="p-4 bg-gray-50 rounded border-l-4 border-red-500 shadow-sm">
-              <div class="text-gray-500 text-xs font-medium">Unpaid (Total Receivables)</div>
-              <div class="text-xl font-bold text-red-600">₱\${totalUnpaidAmount.toFixed(2)}</div>
-            </div>
-            <div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 shadow-sm">
-              <div class="text-gray-500 text-xs font-medium">Disconnected Accounts</div>
-              <div class="text-xl font-bold text-yellow-600">\${disconnectedCount}</div>
-            </div>
-          \`;
-
-          const tbody = document.getElementById('tableBody');
-          tbody.innerHTML = '';
-          
-          const filtered = data.filter(item => {
-            const matchesStatus = (currentFilter === 'all' || item.status === currentFilter);
-            const matchesSearch = item.name.toLowerCase().includes(searchQuery) || 
-                                  (item.address && item.address.toLowerCase().includes(searchQuery)) ||
-                                  (item.collector && item.collector.toLowerCase().includes(searchQuery)) ||
-                                  item.plan.toString().toLowerCase().includes(searchQuery) || 
-                                  item.id.toString().includes(searchQuery);
-            return matchesStatus && matchesSearch;
-          });
-          
-          if (filtered.length === 0) {
-            tbody.innerHTML = \`<tr><td colspan="12" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
-            return;
-          }
-
-          filtered.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b hover:bg-gray-50';
+          try {
+            const res = await fetch('/api/invoices');
+            allInvoices = await res.json();
             
-            let statusBadgeClass = 'bg-gray-100 text-gray-700';
-            if (item.status === 'paid') statusBadgeClass = 'bg-green-100 text-green-700';
-            else if (item.status === 'unpaid') statusBadgeClass = 'bg-red-100 text-red-700';
-            else if (item.status === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800';
-            else if (item.status === 'reconnected') statusBadgeClass = 'bg-blue-100 text-blue-700';
-            else if (item.status === 'pullout') statusBadgeClass = 'bg-purple-100 text-purple-800';
+            const total = allInvoices.length;
+            const paidCount = allInvoices.filter(d => d.status === 'paid').length;
+            const unpaidCount = allInvoices.filter(d => d.status === 'unpaid').length;
+            const disconnectedCount = allInvoices.filter(d => d.status === 'disconnected').length;
+            
+            const totalPaidAmount = allInvoices.filter(d => d.status === 'paid').reduce((sum, d) => sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0), 0);
+            const totalUnpaidAmount = allInvoices.filter(d => d.status === 'unpaid').reduce((sum, d) => sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0), 0);
 
-            const totalDue = item.amount + (item.previousBalance || 0);
-            const prevMos = item.previousBalanceMonths || 0;
-            const collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
-
-            tr.innerHTML = \`
-              <td class="p-3 text-gray-600 font-mono">\${item.id}</td>
-              <td class="p-3 font-medium text-gray-800">\${item.name}</td>
-              <td class="p-3 text-gray-600">\${item.address || ''}</td>
-              <td class="p-3 text-gray-600">\${item.plan}</td>
-              <td class="p-3 font-semibold text-blue-900">\${collectorName}</td>
-              <td class="p-3 text-gray-600">\${item.dueDate}</td>
-              <td class="p-3 text-gray-800">₱\${item.amount.toFixed(2)}</td>
-              <td class="p-3 text-red-600 font-medium">₱\${(item.previousBalance || 0).toFixed(2)}</td>
-              <td class="p-3 text-gray-600 font-medium">\${prevMos} mos</td>
-              <td class="p-3 text-emerald-600 font-bold">₱\${totalDue.toFixed(2)}</td>
-              <td class="p-3">
-                <span class="px-2.5 py-1 text-xs rounded-full font-semibold \${statusBadgeClass}">
-                  \${item.status === 'pullout' ? 'PULL OUT' : item.status.toUpperCase()}
-                </span>
-              </td>
-              <td class="p-3 flex items-center gap-2">
-                \${item.status !== 'paid' ? \`<button onclick="markPaid('\${item.id}')" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
-                <button onclick="openEditModal('\${item.id}', '\${item.name}', '\${item.address || ''}', '\${item.plan}', '\${collectorName}', '\${item.dueDate}', \${item.amount}, \${item.previousBalance || 0}, \${prevMos}, '\${item.status}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
-                <button onclick="deleteCustomer('\${item.id}')" class="text-red-600 hover:underline font-medium text-xs">Delete</button>
-              </td>
+            document.getElementById('summary').innerHTML = \`
+              <div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 shadow-sm">
+                <div class="text-gray-500 text-xs font-medium">Total Subscribers</div>
+                <div class="text-xl font-bold">\${total}</div>
+              </div>
+              <div class="p-4 bg-gray-50 rounded border-l-4 border-green-500 shadow-sm">
+                <div class="text-gray-500 text-xs font-medium">Paid (Total Collected)</div>
+                <div class="text-xl font-bold text-green-600">₱\${totalPaidAmount.toFixed(2)}</div>
+              </div>
+              <div class="p-4 bg-gray-50 rounded border-l-4 border-red-500 shadow-sm">
+                <div class="text-gray-500 text-xs font-medium">Unpaid (Total Receivables)</div>
+                <div class="text-xl font-bold text-red-600">₱\${totalUnpaidAmount.toFixed(2)}</div>
+              </div>
+              <div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 shadow-sm">
+                <div class="text-gray-500 text-xs font-medium">Disconnected Accounts</div>
+                <div class="text-xl font-bold text-yellow-600">\${disconnectedCount}</div>
+              </div>
             \`;
-            tbody.appendChild(tr);
-          });
+
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            const filtered = allInvoices.filter(item => {
+              const matchesStatus = (currentFilter === 'all' || item.status === currentFilter);
+              const nameStr = (item.name || '').toLowerCase();
+              const addrStr = (item.address || '').toLowerCase();
+              const collStr = (item.collector || '').toLowerCase();
+              const planStr = (item.plan || '').toString().toLowerCase();
+              const idStr = (item.id || '').toString().toLowerCase();
+
+              const matchesSearch = !searchQuery || 
+                                    nameStr.includes(searchQuery) || 
+                                    addrStr.includes(searchQuery) ||
+                                    collStr.includes(searchQuery) ||
+                                    planStr.includes(searchQuery) || 
+                                    idStr.includes(searchQuery);
+
+              return matchesStatus && matchesSearch;
+            });
+            
+            if (filtered.length === 0) {
+              tbody.innerHTML = \`<tr><td colspan="12" class="p-4 text-center text-gray-400">Walang nakitang record.</td></tr>\`;
+              return;
+            }
+
+            filtered.forEach(item => {
+              const tr = document.createElement('tr');
+              tr.className = 'border-b hover:bg-gray-50';
+              
+              let statusBadgeClass = 'bg-gray-100 text-gray-700';
+              if (item.status === 'paid') statusBadgeClass = 'bg-green-100 text-green-700';
+              else if (item.status === 'unpaid') statusBadgeClass = 'bg-red-100 text-red-700';
+              else if (item.status === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800';
+              else if (item.status === 'reconnected') statusBadgeClass = 'bg-blue-100 text-blue-700';
+              else if (item.status === 'pullout') statusBadgeClass = 'bg-purple-100 text-purple-800';
+
+              const amount = Number(item.amount) || 0;
+              const prevBal = Number(item.previousBalance) || 0;
+              const totalDue = amount + prevBal;
+              const prevMos = item.previousBalanceMonths || 0;
+              const collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
+
+              tr.innerHTML = \`
+                <td class="p-3 text-gray-600 font-mono">\${item.id}</td>
+                <td class="p-3 font-medium text-gray-800">\${item.name || ''}</td>
+                <td class="p-3 text-gray-600">\${item.address || ''}</td>
+                <td class="p-3 text-gray-600">\${item.plan || ''}</td>
+                <td class="p-3 font-semibold text-blue-900">\${collectorName}</td>
+                <td class="p-3 text-gray-600">\${item.dueDate || ''}</td>
+                <td class="p-3 text-gray-800">₱\${amount.toFixed(2)}</td>
+                <td class="p-3 text-red-600 font-medium">₱\${prevBal.toFixed(2)}</td>
+                <td class="p-3 text-gray-600 font-medium">\${prevMos} mos</td>
+                <td class="p-3 text-emerald-600 font-bold">₱\${totalDue.toFixed(2)}</td>
+                <td class="p-3">
+                  <span class="px-2.5 py-1 text-xs rounded-full font-semibold \${statusBadgeClass}">
+                    \${item.status === 'pullout' ? 'PULL OUT' : (item.status || '').toUpperCase()}
+                  </span>
+                </td>
+                <td class="p-3 flex items-center gap-2">
+                  \${item.status !== 'paid' ? \`<button onclick="markPaid('\${item.id}')" class="text-green-600 hover:underline font-medium text-xs">Mark Paid</button>\` : ''}
+                  <button onclick="openEditModal('\${item.id}')" class="text-blue-600 hover:underline font-medium text-xs">Edit</button>
+                  <button onclick="deleteCustomer('\${item.id}')" class="text-red-600 hover:underline font-medium text-xs">Delete</button>
+                </td>
+              \`;
+              tbody.appendChild(tr);
+            });
+          } catch (err) {
+            console.error('Error loading data:', err);
+          }
         }
 
         function filterStatus(status) {
@@ -722,15 +736,28 @@ app.get('/dashboard', (req, res) => {
 
         async function addSubscriber() {
           const idInput = document.getElementById('newId').value.trim();
-          const name = document.getElementById('newName').value;
+          const name = document.getElementById('newName').value.trim();
           const address = document.getElementById('newAddress').value;
           const plan = document.getElementById('newPlan').value;
           const collector = document.getElementById('newCollector').value;
-          const amount = parseFloat(document.getElementById('newAmount').value);
+          const rawAmount = document.getElementById('newAmount').value;
+          const amount = parseFloat(rawAmount);
           const dueDate = document.getElementById('newDueDate').value;
 
-          if (!name || !address || !plan || isNaN(amount)) {
-            alert('Paki-punuan ang Pangalan, Address, Plan, at Monthly Amount nang tama.');
+          if (!name) {
+            alert('Mangyaring ilagay ang Pangalan ng Customer.');
+            return;
+          }
+          if (!address) {
+            alert('Mangyaring pumili ng Address.');
+            return;
+          }
+          if (!plan) {
+            alert('Mangyaring pumili ng Internet Plan.');
+            return;
+          }
+          if (isNaN(amount)) {
+            alert('Mangyaring pumili ng Monthly Amount.');
             return;
           }
 
@@ -741,30 +768,41 @@ app.get('/dashboard', (req, res) => {
           });
 
           if (res.ok) {
+            // Linisin ang mga input
             document.getElementById('newId').value = '';
             document.getElementById('newName').value = '';
             document.getElementById('newAddress').value = '';
             document.getElementById('newPlan').value = '';
             document.getElementById('newAmount').value = '';
             document.getElementById('newDueDate').value = '';
-            loadData();
+
+            // I-reset ang filter at search para agad lumabas ang bagong customer
+            currentFilter = 'all';
+            searchQuery = '';
+            document.getElementById('searchInput').value = '';
+
+            await loadData();
+            alert('✅ Tagumpay na naidagdag ang bagong customer!');
           } else {
             const err = await res.json();
             alert(err.error || 'May problemang naganap sa pag-save.');
           }
         }
 
-        function openEditModal(id, name, address, plan, collector, dueDate, amount, previousBalance, previousBalanceMonths, status) {
-          document.getElementById('editId').value = id;
-          document.getElementById('editName').value = name;
-          document.getElementById('editAddress').value = address;
-          document.getElementById('editPlan').value = plan;
-          document.getElementById('editCollector').value = collector ? collector.split(' ')[0] : 'Jefford';
-          document.getElementById('editDueDate').value = dueDate;
-          document.getElementById('editAmount').value = amount;
-          document.getElementById('editPrevBalance').value = previousBalance;
-          document.getElementById('editPrevBalanceMonths').value = previousBalanceMonths || 0;
-          document.getElementById('editStatus').value = status;
+        function openEditModal(id) {
+          const item = allInvoices.find(inv => inv.id.toString() === id.toString());
+          if (!item) return;
+
+          document.getElementById('editId').value = item.id;
+          document.getElementById('editName').value = item.name || '';
+          document.getElementById('editAddress').value = item.address || '';
+          document.getElementById('editPlan').value = item.plan || '';
+          document.getElementById('editCollector').value = item.collector ? item.collector.split(' ')[0] : 'Jefford';
+          document.getElementById('editDueDate').value = item.dueDate || '';
+          document.getElementById('editAmount').value = item.amount || '';
+          document.getElementById('editPrevBalance').value = item.previousBalance || 0;
+          document.getElementById('editPrevBalanceMonths').value = item.previousBalanceMonths || 0;
+          document.getElementById('editStatus').value = item.status || 'unpaid';
           document.getElementById('editModal').classList.remove('hidden');
         }
 
@@ -912,13 +950,13 @@ app.post('/api/invoices', (req, res) => {
   const generatedId = db.length > 0 ? (typeof db[db.length - 1].id === 'number' ? db[db.length - 1].id + 1 : db.length + 1) : 1;
   const finalId = customId ? (isNaN(customId) ? customId : Number(customId)) : generatedId;
 
-  // Auto Due Date Calculation kung walang napiling due date
+  // Auto Due Date Calculation
   let finalDueDate = req.body.dueDate;
   if (!finalDueDate) {
     const today = new Date();
     let year = today.getFullYear();
     let month = today.getMonth();
-    const targetDay = 30; // Default to 30th unless specified
+    const targetDay = 30;
 
     if (today.getDate() > targetDay) {
       month += 1;
@@ -989,7 +1027,7 @@ app.delete('/api/invoices/:id', (req, res) => {
   res.json(deleted[0]);
 });
 
-// ================= COMBINED EXCEL EXPORT ROUTE =================
+// ================= EXCEL EXPORT ROUTE =================
 app.get('/api/export-excel', async (req, res) => {
   let db = getDB();
   const collectorQuery = (req.query.collector || '').toLowerCase();
@@ -997,7 +1035,6 @@ app.get('/api/export-excel', async (req, res) => {
   let reportTitle = 'RTECH INTERNET BILLING & PAYMENT REPORT';
   let exportFilename = 'rtech_billing_report.xlsx';
 
-  // PINAGSAMA NA ANG JEFFORD AT JAKE DITO
   if (collectorQuery.includes('jefford')) {
     db = db.filter(item => (item.collector || '').toLowerCase().includes('jefford'));
     reportTitle = 'COLLECTION REPORT - JEFFORD (ALL SCHEDULES)';
@@ -1043,7 +1080,7 @@ app.get('/api/export-excel', async (req, res) => {
   let totalReceivables = 0;
 
   db.forEach((item, index) => {
-    const totalDue = item.amount + (item.previousBalance || 0);
+    const totalDue = (Number(item.amount) || 0) + (Number(item.previousBalance) || 0);
     if (item.status === 'paid') totalCollected += totalDue;
     else if (item.status === 'unpaid') totalReceivables += totalDue;
 
