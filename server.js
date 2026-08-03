@@ -1073,131 +1073,155 @@ app.delete('/api/invoices/:id', (req, res) => {
   res.json(deleted[0]);
 });
 
-// ================= EXCEL EXPORT ROUTE =================
+// ================= EXCEL EXPORT ROUTE (NA-UPDATE PARA SA 15TH & 30TH DUE DATES) =================
 app.get('/api/export-excel', async (req, res) => {
   let db = getDB();
   const collectorQuery = (req.query.collector || '').toLowerCase();
 
-  let reportTitle = 'RTECH INTERNET BILLING & PAYMENT REPORT';
-  let exportFilename = 'rtech_billing_report.xlsx';
-
-  if (collectorQuery.includes('jefford')) {
-    db = db.filter(item => (item.collector || '').toLowerCase().includes('jefford'));
-    reportTitle = 'COLLECTION REPORT - JEFFORD (ALL SCHEDULES)';
-    exportFilename = 'jefford_collection_report.xlsx';
-  } else if (collectorQuery.includes('jake')) {
-    db = db.filter(item => (item.collector || '').toLowerCase().includes('jake'));
-    reportTitle = 'COLLECTION REPORT - JAKE (ALL SCHEDULES)';
-    exportFilename = 'jake_collection_report.xlsx';
-  }
-
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'RTECH Computer Center';
-  const sheet = workbook.addWorksheet('Billing Report');
 
-  sheet.properties.defaultRowHeight = 22;
+  // Helper function para magdagdag ng sheet para sa bawat collector at due date group
+  const addCollectorSheet = (sheetName, reportTitle, filteredData) => {
+    const sheet = workbook.addWorksheet(sheetName);
+    sheet.properties.defaultRowHeight = 22;
 
-  sheet.mergeCells('A1:K1');
-  const titleCell = sheet.getCell('A1');
-  titleCell.value = reportTitle;
-  titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFF' } };
-  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
-  titleCell.alignment = { horizontal: 'center', vertical: 'center' };
-  sheet.getRow(1).height = 35;
+    sheet.mergeCells('A1:K1');
+    const titleCell = sheet.getCell('A1');
+    titleCell.value = reportTitle;
+    titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFF' } };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A8A' } };
+    titleCell.alignment = { horizontal: 'center', vertical: 'center' };
+    sheet.getRow(1).height = 35;
 
-  sheet.addRow([]);
+    sheet.addRow([]);
 
-  const headerRow = sheet.addRow(['Customer ID', 'Customer Name', 'Address', 'Plan', 'Collector', 'Due Date', 'Monthly', 'Prev. Balance', 'Prev. Mos', 'Total Due', 'Status']);
-  headerRow.height = 25;
-  headerRow.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } };
-  
-  headerRow.eachCell((cell) => {
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2563EB' } };
-    cell.alignment = { horizontal: 'center', vertical: 'center' };
-    cell.border = {
-      top: { style: 'thin', color: { argb: 'CCCCCC' } },
-      left: { style: 'thin', color: { argb: 'CCCCCC' } },
-      bottom: { style: 'thin', color: { argb: 'CCCCCC' } },
-      right: { style: 'thin', color: { argb: 'CCCCCC' } }
-    };
-  });
-
-  let totalCollected = 0;
-  let totalReceivables = 0;
-
-  db.forEach((item, index) => {
-    const totalDue = (Number(item.amount) || 0) + (Number(item.previousBalance) || 0);
-    if (item.status === 'paid') totalCollected += totalDue;
-    else if (item.status === 'unpaid') totalReceivables += totalDue;
-
-    const row = sheet.addRow([
-      item.id,
-      item.name,
-      item.address || '',
-      item.plan,
-      item.collector ? item.collector.split(' ')[0] : 'Jefford',
-      item.dueDate,
-      item.amount,
-      item.previousBalance || 0,
-      (item.previousBalanceMonths || 0) + ' mos',
-      totalDue,
-      item.status === 'pullout' ? 'PULL OUT' : (item.status || '').toUpperCase()
-    ]);
-
-    row.font = { name: 'Arial', size: 10 };
-    const isEven = index % 2 === 0;
-    const rowBgColor = isEven ? 'F9FAFB' : 'FFFFFF';
-
-    row.eachCell((cell, colNumber) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBgColor } };
+    const headerRow = sheet.addRow(['Customer ID', 'Customer Name', 'Address', 'Plan', 'Collector', 'Due Date', 'Monthly', 'Prev. Balance', 'Prev. Mos', 'Total Due', 'Status']);
+    headerRow.height = 25;
+    headerRow.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFFFF' } };
+    
+    headerRow.eachCell((cell) => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2563EB' } };
+      cell.alignment = { horizontal: 'center', vertical: 'center' };
       cell.border = {
-        top: { style: 'thin', color: { argb: 'E5E7EB' } },
-        left: { style: 'thin', color: { argb: 'E5E7EB' } },
-        bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
-        right: { style: 'thin', color: { argb: 'E5E7EB' } }
+        top: { style: 'thin', color: { argb: 'CCCCCC' } },
+        left: { style: 'thin', color: { argb: 'CCCCCC' } },
+        bottom: { style: 'thin', color: { argb: 'CCCCCC' } },
+        right: { style: 'thin', color: { argb: 'CCCCCC' } }
       };
-
-      if (colNumber === 1 || colNumber === 5 || colNumber === 6 || colNumber === 9) cell.alignment = { horizontal: 'center' };
-      if (colNumber === 7 || colNumber === 8 || colNumber === 10) {
-        cell.numFmt = '"₱"#,##0.00';
-        cell.alignment = { horizontal: 'right' };
-      }
-      if (colNumber === 11) {
-        cell.alignment = { horizontal: 'center' };
-        let colorCode = '047857';
-        if (item.status === 'unpaid') colorCode = 'B91C1C';
-        else if (item.status === 'disconnected') colorCode = 'B45309';
-        else if (item.status === 'reconnected') colorCode = '1D4ED8';
-        else if (item.status === 'pullout') colorCode = '6B21A8';
-        cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: colorCode } };
-      }
     });
+
+    let totalCollected = 0;
+    let totalReceivables = 0;
+
+    filteredData.forEach((item, index) => {
+      const totalDue = (Number(item.amount) || 0) + (Number(item.previousBalance) || 0);
+      if (item.status === 'paid') totalCollected += totalDue;
+      else if (item.status === 'unpaid') totalReceivables += totalDue;
+
+      const row = sheet.addRow([
+        item.id,
+        item.name,
+        item.address || '',
+        item.plan,
+        item.collector ? item.collector.split(' ')[0] : '',
+        item.dueDate,
+        item.amount,
+        item.previousBalance || 0,
+        (item.previousBalanceMonths || 0) + ' mos',
+        totalDue,
+        item.status === 'pullout' ? 'PULL OUT' : (item.status || '').toUpperCase()
+      ]);
+
+      row.font = { name: 'Arial', size: 10 };
+      const isEven = index % 2 === 0;
+      const rowBgColor = isEven ? 'F9FAFB' : 'FFFFFF';
+
+      row.eachCell((cell, colNumber) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBgColor } };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'E5E7EB' } },
+          left: { style: 'thin', color: { argb: 'E5E7EB' } },
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
+          right: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+
+        if (colNumber === 1 || colNumber === 5 || colNumber === 6 || colNumber === 9) cell.alignment = { horizontal: 'center' };
+        if (colNumber === 7 || colNumber === 8 || colNumber === 10) {
+          cell.numFmt = '"₱"#,##0.00';
+          cell.alignment = { horizontal: 'right' };
+        }
+        if (colNumber === 11) {
+          cell.alignment = { horizontal: 'center' };
+          let colorCode = '047857';
+          if (item.status === 'unpaid') colorCode = 'B91C1C';
+          else if (item.status === 'disconnected') colorCode = 'B45309';
+          else if (item.status === 'reconnected') colorCode = '1D4ED8';
+          else if (item.status === 'pullout') colorCode = '6B21A8';
+          cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: colorCode } };
+        }
+      });
+    });
+
+    sheet.addRow([]);
+
+    const paidRow = sheet.addRow(['', '', '', '', '', '', '', '', 'TOTAL COLLECTED', totalCollected, '']);
+    paidRow.font = { name: 'Arial', size: 10, bold: true };
+    paidRow.getCell(9).alignment = { horizontal: 'right' };
+    paidRow.getCell(10).numFmt = '"₱"#,##0.00';
+    paidRow.getCell(10).font = { name: 'Arial', size: 10, bold: true, color: { argb: '047857' } };
+
+    const unpaidRow = sheet.addRow(['', '', '', '', '', '', '', '', 'TOTAL RECEIVABLES', totalReceivables, '']);
+    unpaidRow.font = { name: 'Arial', size: 10, bold: true };
+    unpaidRow.getCell(9).alignment = { horizontal: 'right' };
+    unpaidRow.getCell(10).numFmt = '"₱"#,##0.00';
+    unpaidRow.getCell(10).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'B91C1C' } };
+
+    sheet.columns.forEach(column => {
+      let maxLength = 10;
+      column.eachCell({ includeEmpty: true }, cell => {
+        const columnLength = cell.value ? cell.value.toString().length : 10;
+        if (columnLength > maxLength) maxLength = columnLength;
+      });
+      column.width = maxLength + 5;
+    });
+  };
+
+  // Function para i-filter ang due date kung ito ba ay 15th o 30th (15th = araw <= 15, 30th = araw > 15)
+  const filterByDueDate = (items, is15th) => {
+    return items.filter(item => {
+      if (!item.dueDate) return false;
+      const day = new Date(item.dueDate).getDate();
+      return is15th ? (day <= 15) : (day > 15);
+    });
+  };
+
+  let collectorsToProcess = ['Jefford', 'Jake'];
+  if (collectorQuery.includes('jefford')) collectorsToProcess = ['Jefford'];
+  else if (collectorQuery.includes('jake')) collectorsToProcess = ['Jake'];
+
+  collectorsToProcess.forEach(collector => {
+    const collectorItems = db.filter(item => (item.collector || '').toLowerCase().includes(collector.toLowerCase()));
+    
+    const items15th = filterByDueDate(collectorItems, true);
+    const items30th = filterByDueDate(collectorItems, false);
+
+    if (items15th.length > 0) {
+      addCollectorSheet(`${collector} - 15th Due`, `${collector.toUpperCase()} - 15TH DUE DATE COLLECTION`, items15th);
+    }
+    if (items30th.length > 0) {
+      addCollectorSheet(`${collector} - 30th Due`, `${collector.toUpperCase()} - 30TH DUE DATE COLLECTION`, items30th);
+    }
   });
 
-  sheet.addRow([]);
+  if (workbook.worksheets.length === 0) {
+    const emptySheet = workbook.addWorksheet('No Data');
+    emptySheet.addRow(['Walang nahanap na record para sa export.']);
+  }
 
-  const paidRow = sheet.addRow(['', '', '', '', '', '', '', '', 'TOTAL COLLECTED', totalCollected, '']);
-  paidRow.font = { name: 'Arial', size: 10, bold: true };
-  paidRow.getCell(9).alignment = { horizontal: 'right' };
-  paidRow.getCell(10).numFmt = '"₱"#,##0.00';
-  paidRow.getCell(10).font = { name: 'Arial', size: 10, bold: true, color: { argb: '047857' } };
-
-  const unpaidRow = sheet.addRow(['', '', '', '', '', '', '', '', 'TOTAL RECEIVABLES', totalReceivables, '']);
-  unpaidRow.font = { name: 'Arial', size: 10, bold: true };
-  unpaidRow.getCell(9).alignment = { horizontal: 'right' };
-  unpaidRow.getCell(10).numFmt = '"₱"#,##0.00';
-  unpaidRow.getCell(10).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'B91C1C' } };
-
-  sheet.columns.forEach(column => {
-    let maxLength = 10;
-    column.eachCell({ includeEmpty: true }, cell => {
-      const columnLength = cell.value ? cell.value.toString().length : 10;
-      if (columnLength > maxLength) {
-        maxLength = columnLength;
-      }
-    });
-    column.width = maxLength + 5;
-  });
+  let exportFilename = 'rtech_billing_report.xlsx';
+  if (collectorQuery.includes('jefford')) exportFilename = 'jefford_collection_report.xlsx';
+  else if (collectorQuery.includes('jake')) exportFilename = 'jake_collection_report.xlsx';
 
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename=${exportFilename}`);
