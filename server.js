@@ -4,6 +4,7 @@ const path = require('path');
 const ExcelJS = require('exceljs');
 const app = express();
 const PORT = process.env.PORT || 3000;
+const DB_FILE = path.join(__dirname, 'database.json');
 
 const DB_FILE = path.join(__dirname, 'database.json');
 const ADMIN_FILE = path.join(__dirname, 'admins.json');
@@ -16,6 +17,9 @@ app.use(express.static(__dirname));
 if (!fs.existsSync(DB_FILE)) {
   const initialData = [];
   fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
+  console.log('📁 Gumawa ng bagong database.json dahil wala pa ito.');
+} else {
+  console.log('✅ Nahanap ang umiiral na database.json. Hindi ito ginalaw.');
 }
 
 // Awtomatikong gagawa ng database para sa Admins kung wala pa (Default: admin / admin123)
