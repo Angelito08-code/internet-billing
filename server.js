@@ -251,13 +251,11 @@ app.get('/customer', (req, res) => {
           const id = document.getElementById('customerId').value.trim();
           const errDiv = document.getElementById('errorMsg');
           const resultArea = document.getElementById('resultArea');
-          const reminderBox = document.getElementById('reminderBox');
 
           if (!id) {
             errDiv.textContent = 'Mangyaring maglagay ng Customer ID.';
             errDiv.classList.remove('hidden');
             resultArea.classList.add('hidden');
-            reminderBox.classList.add('hidden');
             return;
           }
 
@@ -392,7 +390,7 @@ app.get('/dashboard', (req, res) => {
           </div>
 
           <!-- Add Customer Form -->
-          <div class="flex flex-wrap gap-2 items-center bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+          <form onsubmit="handleAddCustomer(event)" class="flex flex-wrap gap-2 items-center bg-gray-50 p-2.5 rounded-lg border border-gray-200">
             <input type="text" id="newId" placeholder="ID (Auto)" class="border px-2.5 py-1.5 rounded text-sm w-24 focus:ring-1 focus:ring-blue-500">
             <input type="text" id="newName" placeholder="Pangalan *" required class="border px-2.5 py-1.5 rounded text-sm w-36 font-medium focus:ring-1 focus:ring-blue-500">
             
@@ -435,10 +433,10 @@ app.get('/dashboard', (req, res) => {
             </select>
 
             <input type="date" id="newDueDate" class="border px-2 py-1.5 rounded text-sm w-36">
-            <button onclick="addSubscriber()" class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 font-semibold shadow transition duration-150 flex items-center gap-1">
+            <button type="submit" class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 font-semibold shadow transition duration-150 flex items-center gap-1">
               ➕ Add Customer
             </button>
-          </div>
+          </form>
         </div>
 
         <!-- Data Table -->
@@ -738,7 +736,8 @@ app.get('/dashboard', (req, res) => {
           }
         }
 
-        async function addSubscriber() {
+        async function handleAddCustomer(e) {
+          if (e) e.preventDefault();
           try {
             var idInput = document.getElementById('newId').value.trim();
             var name = document.getElementById('newName').value.trim();
@@ -772,12 +771,10 @@ app.get('/dashboard', (req, res) => {
             var data = await res.json();
 
             if (res.ok) {
-              // I-clear ang mga input form
               document.getElementById('newId').value = '';
               document.getElementById('newName').value = '';
               document.getElementById('newDueDate').value = '';
 
-              // I-reset ang filter at search bar para makita agad sa listahan
               currentFilter = 'all';
               searchQuery = '';
               document.getElementById('searchInput').value = '';
@@ -788,7 +785,7 @@ app.get('/dashboard', (req, res) => {
               alert('❌ Error: ' + (data.error || 'May problemang naganap sa pag-save.'));
             }
           } catch (err) {
-            console.error("Add Subscriber Error:", err);
+            console.error("Add Customer Error:", err);
             alert('❌ Error sa koneksyon: ' + err.message);
           }
         }
@@ -930,7 +927,6 @@ app.get('/dashboard', (req, res) => {
           }
         }
 
-        // Unang pagpapatakbo pagka-load ng pahina
         loadData();
       </script>
     </body>
@@ -978,7 +974,7 @@ app.get('/api/invoices', (req, res) => {
 app.post('/api/invoices', (req, res) => {
   try {
     const db = getDB();
-    const customId = req.body.id ? String(req.body.id).trim() : null;
+    const customId = req.body.id && String(req.body.id).trim() !== "" ? String(req.body.id).trim() : null;
 
     if (customId && db.some(inv => String(inv.id).toLowerCase() === customId.toLowerCase())) {
       return res.status(400).json({ error: "Mayroon nang umiiral na Customer ID na " + customId + ". Gumamit ng iba." });
@@ -999,17 +995,22 @@ app.post('/api/invoices', (req, res) => {
       const today = new Date();
       let year = today.getFullYear();
       let month = today.getMonth();
-      const targetDay = 30;
 
-      if (today.getDate() > targetDay) {
+      if (today.getDate() > 28) {
         month += 1;
         if (month > 11) {
           month = 0;
           year += 1;
         }
       }
+      const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+      const targetDay = Math.min(30, lastDayOfMonth);
       const calculatedDate = new Date(year, month, targetDay);
-      finalDueDate = calculatedDate.toISOString().split('T')[0];
+      
+      const yyyy = calculatedDate.getFullYear();
+      const mm = String(calculatedDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(calculatedDate.getDate()).padStart(2, '0');
+      finalDueDate = `${yyyy}-${mm}-${dd}`;
     }
 
     const newItem = {
