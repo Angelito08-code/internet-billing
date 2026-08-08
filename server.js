@@ -7,7 +7,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ================= SUPABASE CONFIGURATION =================
-// Ilagay dito ang iyong Supabase URL at Anon Key o gamitin ang Environment Variables sa Render/Railway
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cytckucqmcyubwbhyhsx.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE0MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -19,7 +18,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
-// Siguraduhing may admins.json para sa Admin Login
 if (!fs.existsSync(ADMIN_FILE)) {
   const initialAdmins = [{ id: 1, username: "admin", password: "admin123" }];
   fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
@@ -28,7 +26,6 @@ if (!fs.existsSync(ADMIN_FILE)) {
 const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
 const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));
 
-// Helper Functions para sa Supabase Database
 const getDB = async () => {
   try {
     const { data, error } = await supabase.from('invoices').select('*');
@@ -63,7 +60,6 @@ const getDB = async () => {
         due.setMonth(due.getMonth() + 1);
         const newDueDate = due.toISOString().split('T')[0];
 
-        // I-update sa Supabase kapag nagbago ang buwan
         await supabase.from('invoices').update({
           status: newStatus,
           previousBalance: newPrevBalance,
@@ -425,13 +421,8 @@ app.get('/dashboard', (req, res) => {
               <option value="Jake">Jake</option>
             </select>
 
-            <select id="newAmount" class="border px-2 py-1.5 rounded text-sm bg-white font-medium">
-              <option value="800">₱800</option>
-              <option value="1000">₱1000</option>
-              <option value="1200">₱1200</option>
-              <option value="1500">₱1500</option>
-              <option value="2000">₱2000</option>
-            </select>
+            <!-- Binago mula dropdown patungong Editable Number Input na may default value na 800 -->
+            <input type="number" id="newAmount" value="800" placeholder="Monthly ₱" class="border px-2.5 py-1.5 rounded text-sm w-28 font-medium focus:ring-1 focus:ring-blue-500">
 
             <input type="date" id="newDueDate" class="border px-2 py-1.5 rounded text-sm w-36">
             <button onclick="addSubscriber()" class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 font-semibold shadow transition duration-150 flex items-center gap-1">
@@ -515,14 +506,9 @@ app.get('/dashboard', (req, res) => {
             </div>
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Monthly Amount</label>
-                <select id="editAmount" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
-                  <option value="800">₱800</option>
-                  <option value="1000">₱1000</option>
-                  <option value="1200">₱1200</option>
-                  <option value="1500">₱1500</option>
-                  <option value="2000">₱2000</option>
-                </select>
+                <!-- Binago mula dropdown patungong Editable Number Input para malayang ma-edit o maglagay ng 2400 -->
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Monthly Amount (₱)</label>
+                <input type="number" id="editAmount" class="w-full border px-3 py-1.5 rounded text-sm">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date</label>
