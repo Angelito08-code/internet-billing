@@ -47,7 +47,6 @@ const getDB = async () => {
         let newPrevBalance = Number(item.previousBalance) || 0;
         let newPrevMonths = Number(item.previousBalanceMonths) || 0;
 
-        // Kung free ang status, huwag nang galawin o dagdagan ng utang maliban na lang kung babaguhin
         if (item.status === 'free') {
           continue;
         }
@@ -460,6 +459,16 @@ app.get('/dashboard', (req, res) => {
             <tbody id="tableBody" class="text-sm divide-y divide-gray-200"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- FLOATING SCROLL BUTTONS -->
+      <div class="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+        <button onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" class="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-lg flex items-center justify-center font-bold text-lg transition duration-200" title="Scroll to Top">
+          ↑
+        </button>
+        <button onclick="window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })" class="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-lg flex items-center justify-center font-bold text-lg transition duration-200" title="Scroll to Bottom">
+          ↓
+        </button>
       </div>
 
       <!-- EDIT MODAL -->
