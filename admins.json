@@ -3,8 +3,9 @@
     "id": 1,
     "username": "admin",
     "password": "admin123"
-  }
+  },
   { "id": 2, 
     "username": "Yong", 
-    "password": "password123" }
+    "password": "password123" 
+  }
 ]
