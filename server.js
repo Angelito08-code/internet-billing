@@ -427,6 +427,7 @@ app.get('/dashboard', (req, res) => {
               <option value="MACUGAY">MACUGAY</option>
               <option value="BUNNONG">BUNNONG</option>
               <option value="BATAL">BATAL</option>
+              <option value="NARARAGAN">NARARAGAN</option>
             </select>
 
             <select id="newPlan" class="border px-2 py-1.5 rounded text-sm bg-white">
@@ -509,6 +510,7 @@ app.get('/dashboard', (req, res) => {
                 <option value="MACUGAY">MACUGAY</option>
                 <option value="BUNNONG">BUNNONG</option>
                 <option value="BATAL">BATAL</option>
+                <option value="NARARAGAN">NARARAGAN</option>
               </select>
             </div>
             <div class="grid grid-cols-2 gap-2">
