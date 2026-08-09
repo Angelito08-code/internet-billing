@@ -6,87 +6,95 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ================= SUPABASE CONFIGURATION =================
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cytckucqmcyubwbhyhsx.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE0MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// ================= SUPABASE CONFIGURATION =================[cite: 1]
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cytckucqmcyubwbhyhsx.supabase.co';[cite: 1]
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE0MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';[cite: 1]
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);[cite: 1]
 
-const ADMIN_FILE = path.join(__dirname, 'admins.json');
-const fs = require('fs');
+const ADMIN_FILE = path.join(__dirname, 'admins.json');[cite: 1]
+const fs = require('fs');[cite: 1]
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(__dirname));
+app.use(express.json());[cite: 1]
+app.use(express.urlencoded({ extended: true }));[cite: 1]
+app.use(express.static(__dirname));[cite: 1]
 
-if (!fs.existsSync(ADMIN_FILE)) {
-  const initialAdmins = [{ id: 1, username: "admin", password: "admin123" }];
-  fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
+if (!fs.existsSync(ADMIN_FILE)) {[cite: 1]
+  const initialAdmins = [{ id: 1, username: "admin", password: "admin123" }];[cite: 1]
+  fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));[cite: 1]
 }
 
-const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
-const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));
+const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));[cite: 1]
+const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));[cite: 1]
 
-const getDB = async () => {
-  try {
-    const { data, error } = await supabase.from('invoices').select('*');
-    if (error) throw error;
-    let db = data || [];
+const getDB = async () => {[cite: 1]
+  try {[cite: 1]
+    const { data, error } = await supabase.from('invoices').select('*').order('id', { ascending: true });[cite: 1]
+    if (error) throw error;[cite: 1]
+    let db = data || [];[cite: 1]
     
-    let updated = false;
-    const today = new Date();
+    // Sinisigurong naka-ascending order ang mga ID (gumagana sa numero at alphanumeric)[cite: 1]
+    db.sort((a, b) => {[cite: 1]
+      let idA = a.id;[cite: 1]
+      let idB = b.id;[cite: 1]
+      let numA = Number(idA);[cite: 1]
+      let numB = Number(idB);[cite: 1]
+      if (!isNaN(numA) && !isNaN(numB)) {[cite: 1]
+        return numA - numB;[cite: 1]
+      }[cite: 1]
+      return String(idA).localeCompare(String(idB), undefined, { numeric: true, sensitivity: 'base' });[cite: 1]
+    });[cite: 1]
+    
+    let updated = false;[cite: 1]
+    const today = new Date();[cite: 1]
 
-    for (let item of db) {
-      if (!item || !item.dueDate) continue;
-      const due = new Date(item.dueDate);
-      if (isNaN(due.getTime())) continue;
+    for (let item of db) {[cite: 1]
+      if (!item || !item.dueDate) continue;[cite: 1]
+      const due = new Date(item.dueDate);[cite: 1]
+      if (isNaN(due.getTime())) continue;[cite: 1]
 
-      if (today.getFullYear() > due.getFullYear() || 
-         (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
+      if (today.getFullYear() > due.getFullYear() || [cite: 1]
+         (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {[cite: 1]
         
-        let newStatus = item.status;
-        let newPrevBalance = Number(item.previousBalance) || 0;
-        let newPrevMonths = Number(item.previousBalanceMonths) || 0;
+        let newStatus = item.status;[cite: 1]
+        let newPrevBalance = Number(item.previousBalance) || 0;[cite: 1]
+        let newPrevMonths = Number(item.previousBalanceMonths) || 0;[cite: 1]
 
-        if (item.status === 'free') {
-          continue;
+        if (item.status === 'paid') {[cite: 1]
+          newPrevBalance = 0;[cite: 1]
+          newPrevMonths = 0;[cite: 1]
+          newStatus = 'unpaid';[cite: 1]
+        } else if (item.status === 'unpaid' || item.status === 'reconnected') {[cite: 1]
+          newPrevBalance = newPrevBalance + (Number(item.amount) || 0);[cite: 1]
+          newPrevMonths = newPrevMonths + 1;[cite: 1]
+          newStatus = 'unpaid';[cite: 1]
         }
 
-        if (item.status === 'paid') {
-          newPrevBalance = 0;
-          newPrevMonths = 0;
-          newStatus = 'unpaid';
-        } else if (item.status === 'unpaid' || item.status === 'reconnected') {
-          newPrevBalance = newPrevBalance + (Number(item.amount) || 0);
-          newPrevMonths = newPrevMonths + 1;
-          newStatus = 'unpaid';
-        }
+        due.setMonth(due.getMonth() + 1);[cite: 1]
+        const newDueDate = due.toISOString().split('T')[0];[cite: 1]
 
-        due.setMonth(due.getMonth() + 1);
-        const newDueDate = due.toISOString().split('T')[0];
+        await supabase.from('invoices').update({[cite: 1]
+          status: newStatus,[cite: 1]
+          previousBalance: newPrevBalance,[cite: 1]
+          previousBalanceMonths: newPrevMonths,[cite: 1]
+          dueDate: newDueDate[cite: 1]
+        }).eq('id', item.id);[cite: 1]
 
-        await supabase.from('invoices').update({
-          status: newStatus,
-          previousBalance: newPrevBalance,
-          previousBalanceMonths: newPrevMonths,
-          dueDate: newDueDate
-        }).eq('id', item.id);
-
-        item.status = newStatus;
-        item.previousBalance = newPrevBalance;
-        item.previousBalanceMonths = newPrevMonths;
-        item.dueDate = newDueDate;
-        updated = true;
+        item.status = newStatus;[cite: 1]
+        item.previousBalance = newPrevBalance;[cite: 1]
+        item.previousBalanceMonths = newPrevMonths;[cite: 1]
+        item.dueDate = newDueDate;[cite: 1]
+        updated = true;[cite: 1]
       }
     }
-    return db;
-  } catch (err) {
-    console.error("Error sa pagbasa ng DB mula Supabase:", err);
-    return [];
+    return db;[cite: 1]
+  } catch (err) {[cite: 1]
+    console.error("Error sa pagbasa ng DB mula Supabase:", err);[cite: 1]
+    return [];[cite: 1]
   }
 };
 
-// ================= LOGIN PAGE =================
-app.get('/', (req, res) => {
+// ================= LOGIN PAGE =================[cite: 1]
+app.get('/', (req, res) => {[cite: 1]
   res.send(`
     <!DOCTYPE html>
     <html lang="tl">
@@ -172,8 +180,8 @@ app.post('/api/login', (req, res) => {
   }
 });
 
-// ================= CUSTOMER PORTAL =================
-app.get('/customer', (req, res) => {
+// ================= CUSTOMER PORTAL =================[cite: 1]
+app.get('/customer', (req, res) => {[cite: 1]
   res.send(`
     <!DOCTYPE html>
     <html lang="tl">
@@ -281,7 +289,7 @@ app.get('/customer', (req, res) => {
               document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
               
               const statusEl = document.getElementById('resStatus');
-              statusEl.textContent = data.status === 'pullout' ? 'PULL OUT' : (data.status === 'free' ? 'FREE' : data.status);
+              statusEl.textContent = data.status === 'pullout' ? 'PULL OUT' : data.status;
               statusEl.className = 'px-3 py-1 text-xs rounded-full font-bold uppercase ';
               
               if (data.status === 'paid') {
@@ -292,8 +300,6 @@ app.get('/customer', (req, res) => {
                 statusEl.className += 'bg-blue-500/20 text-blue-400 border border-blue-500';
               } else if (data.status === 'pullout') {
                 statusEl.className += 'bg-purple-500/20 text-purple-400 border border-purple-500';
-              } else if (data.status === 'free') {
-                statusEl.className += 'bg-teal-500/20 text-teal-400 border border-teal-500';
               } else {
                 statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
               }
@@ -306,7 +312,7 @@ app.get('/customer', (req, res) => {
             }
           } catch (err) {
             errDiv.textContent = 'May problemang naganap sa koneksyon.';
-            errDiv.classList.add('hidden');
+            errDiv.classList.remove('hidden');
           }
         }
       </script>
@@ -324,8 +330,8 @@ app.get('/api/customer/:id', async (req, res) => {
   res.json(customer);
 });
 
-// ================= ADMIN DASHBOARD =================
-app.get('/dashboard', (req, res) => {
+// ================= ADMIN DASHBOARD =================[cite: 1]
+app.get('/dashboard', (req, res) => {[cite: 1]
   res.send(`
     <!DOCTYPE html>
     <html lang="tl">
@@ -384,7 +390,6 @@ app.get('/dashboard', (req, res) => {
               <button onclick="filterStatus('disconnected')" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-sm font-medium hover:bg-yellow-200">Disconnected</button>
               <button onclick="filterStatus('reconnected')" class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium hover:bg-blue-200">Reconnected</button>
               <button onclick="filterStatus('pullout')" class="px-3 py-1 bg-purple-100 text-purple-700 rounded text-sm font-medium hover:bg-purple-200">Pull Out</button>
-              <button onclick="filterStatus('free')" class="px-3 py-1 bg-teal-100 text-teal-700 rounded text-sm font-medium hover:bg-teal-200">Free</button>
             </div>
             
             <div class="flex items-center gap-1 ml-2">
@@ -461,26 +466,13 @@ app.get('/dashboard', (req, res) => {
         </div>
       </div>
 
-      <!-- FLOATING SCROLL BUTTONS -->
-      <div class="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
-        <button onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" class="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-lg flex items-center justify-center font-bold text-lg transition duration-200" title="Scroll to Top">
-          ↑
-        </button>
-        <button onclick="window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })" class="bg-blue-600 hover:bg-blue-700 text-white w-10 h-10 rounded-full shadow-lg flex items-center justify-center font-bold text-lg transition duration-200" title="Scroll to Bottom">
-          ↓
-        </button>
-      </div>
-
       <!-- EDIT MODAL -->
       <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
           <h2 class="text-xl font-bold text-gray-800 mb-4">Edit Customer Info</h2>
+          <input type="hidden" id="editId">
           
           <div class="space-y-3">
-            <div>
-              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Customer ID</label>
-              <input type="text" id="editId" class="w-full border px-3 py-1.5 rounded text-sm font-mono font-bold bg-gray-50">
-            </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Customer Name</label>
               <input type="text" id="editName" class="w-full border px-3 py-1.5 rounded text-sm">
@@ -553,7 +545,6 @@ app.get('/dashboard', (req, res) => {
                 <option value="disconnected">DISCONNECTED</option>
                 <option value="reconnected">RECONNECTED</option>
                 <option value="pullout">PULL OUT</option>
-                <option value="free">FREE</option>
               </select>
             </div>
           </div>
@@ -594,7 +585,6 @@ app.get('/dashboard', (req, res) => {
         var currentFilter = 'all';
         var searchQuery = '';
         var allInvoices = [];
-        var originalEditId = '';
 
         function logout() {
           localStorage.removeItem('isLoggedIn');
@@ -693,7 +683,6 @@ app.get('/dashboard', (req, res) => {
               else if (itemStatus === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800 border border-yellow-300';
               else if (itemStatus === 'reconnected') statusBadgeClass = 'bg-blue-100 text-blue-700 border border-blue-300';
               else if (itemStatus === 'pullout') statusBadgeClass = 'bg-purple-100 text-purple-800 border border-purple-300';
-              else if (itemStatus === 'free') statusBadgeClass = 'bg-teal-100 text-teal-700 border border-teal-300';
 
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
@@ -708,10 +697,6 @@ app.get('/dashboard', (req, res) => {
               actionButtons += '<button onclick="openEditModal(\\'' + item.id + '\\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
               actionButtons += '<button onclick="deleteCustomer(\\'' + item.id + '\\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
 
-              var displayStatusText = itemStatus.toUpperCase();
-              if (itemStatus === 'pullout') displayStatusText = 'PULL OUT';
-              else if (itemStatus === 'free') displayStatusText = 'FREE';
-
               tr.innerHTML = 
                 '<td class="p-3 text-gray-700 font-mono font-bold">' + (item.id !== undefined ? item.id : '') + '</td>' +
                 '<td class="p-3 font-semibold text-gray-900">' + (item.name || '') + '</td>' +
@@ -725,7 +710,7 @@ app.get('/dashboard', (req, res) => {
                 '<td class="p-3 text-emerald-600 font-bold text-base">₱' + totalDue.toFixed(2) + '</td>' +
                 '<td class="p-3">' +
                   '<span class="px-2.5 py-1 text-xs rounded-full font-bold uppercase ' + statusBadgeClass + '">' +
-                    displayStatusText +
+                    (itemStatus === 'pullout' ? 'PULL OUT' : itemStatus.toUpperCase()) +
                   '</span>' +
                 '</td>' +
                 '<td class="p-3 flex items-center">' + actionButtons + '</td>';
@@ -802,7 +787,6 @@ app.get('/dashboard', (req, res) => {
           var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
           if (!item) return;
 
-          originalEditId = item.id;
           document.getElementById('editId').value = item.id;
           document.getElementById('editName').value = item.name || '';
           document.getElementById('editAddress').value = item.address || 'SAN AGUSTIN';
@@ -822,7 +806,7 @@ app.get('/dashboard', (req, res) => {
 
         async function saveEditedCustomer() {
           try {
-            var newId = document.getElementById('editId').value.trim();
+            var id = document.getElementById('editId').value;
             var name = document.getElementById('editName').value;
             var address = document.getElementById('editAddress').value;
             var plan = document.getElementById('editPlan').value;
@@ -833,20 +817,15 @@ app.get('/dashboard', (req, res) => {
             var previousBalanceMonths = parseInt(document.getElementById('editPrevBalanceMonths').value, 10);
             var status = document.getElementById('editStatus').value;
 
-            if (!newId) {
-              alert('Paki-lagyan ng Customer ID.');
-              return;
-            }
             if (!name) {
               alert('Paki-punuan ang pangalan ng customer.');
               return;
             }
 
-            var res = await fetch('/api/invoices/' + encodeURIComponent(originalEditId), {
+            await fetch('/api/invoices/' + id, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                id: newId,
                 name: name,
                 address: address,
                 plan: plan,
@@ -859,14 +838,8 @@ app.get('/dashboard', (req, res) => {
               })
             });
 
-            var data = await res.json();
-
-            if (res.ok) {
-              closeEditModal();
-              loadData();
-            } else {
-              alert('❌ Error: ' + (data.error || 'Hindi na-save ang mga pagbabago.'));
-            }
+            closeEditModal();
+            loadData();
           } catch (err) {
             alert('Hindi na-save ang mga pagbabago.');
           }
@@ -954,12 +927,12 @@ app.get('/dashboard', (req, res) => {
   `);
 });
 
-// ================= ADMIN API ENDPOINTS =================
-app.get('/api/admins', (req, res) => {
+// ================= ADMIN API ENDPOINTS =================[cite: 1]
+app.get('/api/admins', (req, res) => {[cite: 1]
   res.json(getAdmins());
 });
 
-app.post('/api/admins', (req, res) => {
+app.post('/api/admins', (req, res) => {[cite: 1]
   const { username, password } = req.body;
   const admins = getAdmins();
   if (admins.some(a => a.username === username)) {
@@ -975,7 +948,7 @@ app.post('/api/admins', (req, res) => {
   res.json(newAdmin);
 });
 
-app.delete('/api/admins/:id', (req, res) => {
+app.delete('/api/admins/:id', (req, res) => {[cite: 1]
   let admins = getAdmins();
   if (admins.length <= 1) {
     return res.status(400).json({ error: 'Hindi maaaring burahin ang nag-iisang admin.' });
@@ -985,14 +958,14 @@ app.delete('/api/admins/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// ================= INVOICES SUPABASE API =================
-app.get('/api/invoices', async (req, res) => {
+// ================= INVOICES SUPABASE API =================[cite: 1]
+app.get('/api/invoices', async (req, res) => {[cite: 1]
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   const db = await getDB();
   res.json(db);
 });
 
-app.post('/api/invoices', async (req, res) => {
+app.post('/api/invoices', async (req, res) => {[cite: 1]
   try {
     const db = await getDB();
     const customId = req.body.id ? String(req.body.id).trim() : null;
@@ -1052,7 +1025,7 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-app.put('/api/invoices/:id/pay', async (req, res) => {
+app.put('/api/invoices/:id/pay', async (req, res) => {[cite: 1]
   try {
     const { data, error } = await supabase.from('invoices').update({
       status: "paid",
@@ -1067,20 +1040,9 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
   }
 });
 
-app.put('/api/invoices/:id', async (req, res) => {
+app.put('/api/invoices/:id', async (req, res) => {[cite: 1]
   try {
-    const oldId = req.params.id;
-    const newId = req.body.id !== undefined ? String(req.body.id).trim() : oldId;
-
-    if (newId !== oldId) {
-      const db = await getDB();
-      if (db.some(inv => String(inv.id).toLowerCase() === newId.toLowerCase())) {
-        return res.status(400).json({ error: "Mayroon nang umiiral na Customer ID na " + newId + ". Gumamit ng ibang ID." });
-      }
-    }
-
     const updatePayload = {};
-    if (req.body.id !== undefined) updatePayload.id = String(req.body.id).trim();
     if (req.body.name !== undefined) updatePayload.name = req.body.name;
     if (req.body.address !== undefined) updatePayload.address = req.body.address;
     if (req.body.plan !== undefined) updatePayload.plan = req.body.plan;
@@ -1091,16 +1053,16 @@ app.put('/api/invoices/:id', async (req, res) => {
     if (req.body.previousBalanceMonths !== undefined) updatePayload.previousBalanceMonths = parseInt(req.body.previousBalanceMonths, 10);
     if (req.body.status !== undefined) updatePayload.status = req.body.status;
 
-    const { data, error } = await supabase.from('invoices').update(updatePayload).eq('id', oldId).select();
+    const { data, error } = await supabase.from('invoices').update(updatePayload).eq('id', req.params.id).select();
     if (error) throw error;
 
     res.json(data[0] || { success: true });
   } catch (err) {
-    res.status(500).json({ error: "Hindi na-save ang mga pagbabago: " + err.message });
+    res.status(500).json({ error: "Hindi na-save ang mga pagbabago" });
   }
 });
 
-app.delete('/api/invoices/:id', async (req, res) => {
+app.delete('/api/invoices/:id', async (req, res) => {[cite: 1]
   try {
     const { data, error } = await supabase.from('invoices').delete().eq('id', req.params.id).select();
     if (error) throw error;
@@ -1110,8 +1072,8 @@ app.delete('/api/invoices/:id', async (req, res) => {
   }
 });
 
-// ================= EXCEL EXPORT ROUTE (15th & 30th) =================
-app.get('/api/export-excel', async (req, res) => {
+// ================= EXCEL EXPORT ROUTE (15th & 30th) =================[cite: 1]
+app.get('/api/export-excel', async (req, res) => {[cite: 1]
   let db = await getDB();
   const collectorQuery = (req.query.collector || '').toLowerCase();
 
@@ -1155,10 +1117,6 @@ app.get('/api/export-excel', async (req, res) => {
       if (item.status === 'paid') totalCollected += totalDue;
       else if (item.status === 'unpaid') totalReceivables += totalDue;
 
-      let statusText = (item.status || '').toUpperCase();
-      if (item.status === 'pullout') statusText = 'PULL OUT';
-      else if (item.status === 'free') statusText = 'FREE';
-
       const row = sheet.addRow([
         item.id,
         item.name,
@@ -1170,7 +1128,7 @@ app.get('/api/export-excel', async (req, res) => {
         item.previousBalance || 0,
         (item.previousBalanceMonths || 0) + ' mos',
         totalDue,
-        statusText
+        item.status === 'pullout' ? 'PULL OUT' : (item.status || '').toUpperCase()
       ]);
 
       row.font = { name: 'Arial', size: 10 };
@@ -1198,7 +1156,6 @@ app.get('/api/export-excel', async (req, res) => {
           else if (item.status === 'disconnected') colorCode = 'B45309';
           else if (item.status === 'reconnected') colorCode = '1D4ED8';
           else if (item.status === 'pullout') colorCode = '6B21A8';
-          else if (item.status === 'free') colorCode = '0D9488';
           cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: colorCode } };
         }
       });
