@@ -410,6 +410,7 @@ app.get('/dashboard', (req, res) => {
             <input type="text" id="newName" placeholder="Name *" required class="border px-2.5 py-1.5 rounded text-sm w-36 font-medium focus:ring-1 focus:ring-blue-500">
             
             <select id="newAddress" class="border px-2 py-1.5 rounded text-sm bg-white">
+              <option value="" disabled selected>Address</option>
               <option value="SAN AGUSTIN">SAN AGUSTIN</option>
               <option value="LIBERTAD">LIBERTAD</option>
               <option value="BANGUIAN">BANGUIAN</option>
@@ -430,17 +431,19 @@ app.get('/dashboard', (req, res) => {
             </select>
 
             <select id="newPlan" class="border px-2 py-1.5 rounded text-sm bg-white">
+              <option value="" disabled selected>Plan</option>
               <option value="50Mbps">50Mbps</option>
               <option value="75Mbps">75Mbps</option>
               <option value="100Mbps">100Mbps</option>
             </select>
 
             <select id="newCollector" class="border px-2 py-1.5 rounded text-sm bg-white font-semibold text-blue-900">
+              <option value="" disabled selected>Collector</option>
               <option value="Jefford">Jefford</option>
               <option value="Jake">Jake</option>
             </select>
 
-            <input type="number" id="newAmount" list="monthlyAmounts" value="800" placeholder="Monthly" class="border px-2.5 py-1.5 rounded text-sm w-28 font-medium focus:ring-1 focus:ring-blue-500">
+            <input type="number" id="newAmount" list="monthlyAmounts" placeholder="Monthly" class="border px-2.5 py-1.5 rounded text-sm w-28 font-medium focus:ring-1 focus:ring-blue-500">
             <datalist id="monthlyAmounts">
               <option value="800">
               <option value="1000">
@@ -499,6 +502,7 @@ app.get('/dashboard', (req, res) => {
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Address</label>
               <select id="editAddress" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
+                <option value="" disabled selected>Address</option>
                 <option value="SAN AGUSTIN">SAN AGUSTIN</option>
                 <option value="LIBERTAD">LIBERTAD</option>
                 <option value="BANGUIAN">BANGUIAN</option>
@@ -522,6 +526,7 @@ app.get('/dashboard', (req, res) => {
               <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Plan</label>
                 <select id="editPlan" class="w-full border px-3 py-1.5 rounded text-sm bg-white">
+                  <option value="" disabled selected>Plan</option>
                   <option value="50Mbps">50Mbps</option>
                   <option value="75Mbps">75Mbps</option>
                   <option value="100Mbps">100Mbps</option>
@@ -530,6 +535,7 @@ app.get('/dashboard', (req, res) => {
               <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Collector</label>
                 <select id="editCollector" class="w-full border px-3 py-1.5 rounded text-sm bg-white font-semibold">
+                  <option value="" disabled selected>Collector</option>
                   <option value="Jefford">Jefford</option>
                   <option value="Jake">Jake</option>
                 </select>
@@ -788,9 +794,9 @@ app.get('/dashboard', (req, res) => {
           try {
             var idInput = document.getElementById('newId').value.trim();
             var name = document.getElementById('newName').value.trim();
-            var address = document.getElementById('newAddress').value || "SAN AGUSTIN";
-            var plan = document.getElementById('newPlan').value || "50Mbps";
-            var collector = document.getElementById('newCollector').value || "Jefford";
+            var address = document.getElementById('newAddress').value;
+            var plan = document.getElementById('newPlan').value;
+            var collector = document.getElementById('newCollector').value;
             var rawAmount = document.getElementById('newAmount').value || "800";
             var amount = parseFloat(rawAmount) || 800;
             var dueDate = document.getElementById('newDueDate').value;
@@ -798,6 +804,24 @@ app.get('/dashboard', (req, res) => {
             if (!name) {
               alert('⚠️ Please enter the Customer Name.');
               document.getElementById('newName').focus();
+              return;
+            }
+
+            if (!address) {
+              alert('⚠️ Please select an Address.');
+              document.getElementById('newAddress').focus();
+              return;
+            }
+
+            if (!plan) {
+              alert('⚠️ Please select a Plan.');
+              document.getElementById('newPlan').focus();
+              return;
+            }
+
+            if (!collector) {
+              alert('⚠️ Please select a Collector.');
+              document.getElementById('newCollector').focus();
               return;
             }
 
@@ -820,6 +844,10 @@ app.get('/dashboard', (req, res) => {
             if (res.ok) {
               document.getElementById('newId').value = '';
               document.getElementById('newName').value = '';
+              document.getElementById('newAddress').selectedIndex = 0;
+              document.getElementById('newPlan').selectedIndex = 0;
+              document.getElementById('newCollector').selectedIndex = 0;
+              document.getElementById('newAmount').value = '';
               document.getElementById('newDueDate').value = '';
 
               currentFilter = 'all';
