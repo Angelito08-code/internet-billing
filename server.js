@@ -32,7 +32,6 @@ const getDB = async () => {
     if (error) throw error;
     let db = data || [];
     
-    // Sinisigurong naka-ascending order ang mga ID (gumagana sa numero at alphanumeric)
     db.sort((a, b) => {
       let idA = a.id;
       let idB = b.id;
@@ -690,12 +689,13 @@ app.get('/dashboard', (req, res) => {
               var prevMos = item.previousBalanceMonths || 0;
               var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
 
+              var safeId = String(item.id !== undefined ? item.id : '').replace(/'/g, "\\'");
               var actionButtons = '';
               if (itemStatus !== 'paid') {
-                actionButtons += '<button onclick="markPaid(\'' + item.id + '\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
+                actionButtons += '<button onclick="markPaid(\\'' + safeId + '\\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
               }
-              actionButtons += '<button onclick="openEditModal(\'' + item.id + '\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
-              actionButtons += '<button onclick="deleteCustomer(\'' + item.id + '\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
+              actionButtons += '<button onclick="openEditModal(\\'' + safeId + '\\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
+              actionButtons += '<button onclick="deleteCustomer(\\'' + safeId + '\\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
 
               tr.innerHTML = 
                 '<td class="p-3 text-gray-700 font-mono font-bold">' + (item.id !== undefined ? item.id : '') + '</td>' +
