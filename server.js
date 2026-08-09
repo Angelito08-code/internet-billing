@@ -6,95 +6,95 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ================= SUPABASE CONFIGURATION =================[cite: 1]
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cytckucqmcyubwbhyhsx.supabase.co';[cite: 1]
-const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE0MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';[cite: 1]
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);[cite: 1]
+// ================= SUPABASE CONFIGURATION =================
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cytckucqmcyubwbhyhsx.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE0MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const ADMIN_FILE = path.join(__dirname, 'admins.json');[cite: 1]
-const fs = require('fs');[cite: 1]
+const ADMIN_FILE = path.join(__dirname, 'admins.json');
+const fs = require('fs');
 
-app.use(express.json());[cite: 1]
-app.use(express.urlencoded({ extended: true }));[cite: 1]
-app.use(express.static(__dirname));[cite: 1]
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(__dirname));
 
-if (!fs.existsSync(ADMIN_FILE)) {[cite: 1]
-  const initialAdmins = [{ id: 1, username: "admin", password: "admin123" }];[cite: 1]
-  fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));[cite: 1]
+if (!fs.existsSync(ADMIN_FILE)) {
+  const initialAdmins = [{ id: 1, username: "admin", password: "admin123" }];
+  fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
 }
 
-const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));[cite: 1]
-const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));[cite: 1]
+const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
+const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));
 
-const getDB = async () => {[cite: 1]
-  try {[cite: 1]
-    const { data, error } = await supabase.from('invoices').select('*').order('id', { ascending: true });[cite: 1]
-    if (error) throw error;[cite: 1]
-    let db = data || [];[cite: 1]
+const getDB = async () => {
+  try {
+    const { data, error } = await supabase.from('invoices').select('*').order('id', { ascending: true });
+    if (error) throw error;
+    let db = data || [];
     
-    // Sinisigurong naka-ascending order ang mga ID (gumagana sa numero at alphanumeric)[cite: 1]
-    db.sort((a, b) => {[cite: 1]
-      let idA = a.id;[cite: 1]
-      let idB = b.id;[cite: 1]
-      let numA = Number(idA);[cite: 1]
-      let numB = Number(idB);[cite: 1]
-      if (!isNaN(numA) && !isNaN(numB)) {[cite: 1]
-        return numA - numB;[cite: 1]
-      }[cite: 1]
-      return String(idA).localeCompare(String(idB), undefined, { numeric: true, sensitivity: 'base' });[cite: 1]
-    });[cite: 1]
+    // Sinisigurong naka-ascending order ang mga ID (gumagana sa numero at alphanumeric)
+    db.sort((a, b) => {
+      let idA = a.id;
+      let idB = b.id;
+      let numA = Number(idA);
+      let numB = Number(idB);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return String(idA).localeCompare(String(idB), undefined, { numeric: true, sensitivity: 'base' });
+    });
     
-    let updated = false;[cite: 1]
-    const today = new Date();[cite: 1]
+    let updated = false;
+    const today = new Date();
 
-    for (let item of db) {[cite: 1]
-      if (!item || !item.dueDate) continue;[cite: 1]
-      const due = new Date(item.dueDate);[cite: 1]
-      if (isNaN(due.getTime())) continue;[cite: 1]
+    for (let item of db) {
+      if (!item || !item.dueDate) continue;
+      const due = new Date(item.dueDate);
+      if (isNaN(due.getTime())) continue;
 
-      if (today.getFullYear() > due.getFullYear() || [cite: 1]
-         (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {[cite: 1]
+      if (today.getFullYear() > due.getFullYear() || 
+         (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
         
-        let newStatus = item.status;[cite: 1]
-        let newPrevBalance = Number(item.previousBalance) || 0;[cite: 1]
-        let newPrevMonths = Number(item.previousBalanceMonths) || 0;[cite: 1]
+        let newStatus = item.status;
+        let newPrevBalance = Number(item.previousBalance) || 0;
+        let newPrevMonths = Number(item.previousBalanceMonths) || 0;
 
-        if (item.status === 'paid') {[cite: 1]
-          newPrevBalance = 0;[cite: 1]
-          newPrevMonths = 0;[cite: 1]
-          newStatus = 'unpaid';[cite: 1]
-        } else if (item.status === 'unpaid' || item.status === 'reconnected') {[cite: 1]
-          newPrevBalance = newPrevBalance + (Number(item.amount) || 0);[cite: 1]
-          newPrevMonths = newPrevMonths + 1;[cite: 1]
-          newStatus = 'unpaid';[cite: 1]
+        if (item.status === 'paid') {
+          newPrevBalance = 0;
+          newPrevMonths = 0;
+          newStatus = 'unpaid';
+        } else if (item.status === 'unpaid' || item.status === 'reconnected') {
+          newPrevBalance = newPrevBalance + (Number(item.amount) || 0);
+          newPrevMonths = newPrevMonths + 1;
+          newStatus = 'unpaid';
         }
 
-        due.setMonth(due.getMonth() + 1);[cite: 1]
-        const newDueDate = due.toISOString().split('T')[0];[cite: 1]
+        due.setMonth(due.getMonth() + 1);
+        const newDueDate = due.toISOString().split('T')[0];
 
-        await supabase.from('invoices').update({[cite: 1]
-          status: newStatus,[cite: 1]
-          previousBalance: newPrevBalance,[cite: 1]
-          previousBalanceMonths: newPrevMonths,[cite: 1]
-          dueDate: newDueDate[cite: 1]
-        }).eq('id', item.id);[cite: 1]
+        await supabase.from('invoices').update({
+          status: newStatus,
+          previousBalance: newPrevBalance,
+          previousBalanceMonths: newPrevMonths,
+          dueDate: newDueDate
+        }).eq('id', item.id);
 
-        item.status = newStatus;[cite: 1]
-        item.previousBalance = newPrevBalance;[cite: 1]
-        item.previousBalanceMonths = newPrevMonths;[cite: 1]
-        item.dueDate = newDueDate;[cite: 1]
-        updated = true;[cite: 1]
+        item.status = newStatus;
+        item.previousBalance = newPrevBalance;
+        item.previousBalanceMonths = newPrevMonths;
+        item.dueDate = newDueDate;
+        updated = true;
       }
     }
-    return db;[cite: 1]
-  } catch (err) {[cite: 1]
-    console.error("Error sa pagbasa ng DB mula Supabase:", err);[cite: 1]
-    return [];[cite: 1]
+    return db;
+  } catch (err) {
+    console.error("Error sa pagbasa ng DB mula Supabase:", err);
+    return [];
   }
 };
 
-// ================= LOGIN PAGE =================[cite: 1]
-app.get('/', (req, res) => {[cite: 1]
+// ================= LOGIN PAGE =================
+app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html lang="tl">
@@ -180,8 +180,8 @@ app.post('/api/login', (req, res) => {
   }
 });
 
-// ================= CUSTOMER PORTAL =================[cite: 1]
-app.get('/customer', (req, res) => {[cite: 1]
+// ================= CUSTOMER PORTAL =================
+app.get('/customer', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html lang="tl">
@@ -330,8 +330,8 @@ app.get('/api/customer/:id', async (req, res) => {
   res.json(customer);
 });
 
-// ================= ADMIN DASHBOARD =================[cite: 1]
-app.get('/dashboard', (req, res) => {[cite: 1]
+// ================= ADMIN DASHBOARD =================
+app.get('/dashboard', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html lang="tl">
@@ -692,10 +692,10 @@ app.get('/dashboard', (req, res) => {[cite: 1]
 
               var actionButtons = '';
               if (itemStatus !== 'paid') {
-                actionButtons += '<button onclick="markPaid(\\'' + item.id + '\\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
+                actionButtons += '<button onclick="markPaid(\'' + item.id + '\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
               }
-              actionButtons += '<button onclick="openEditModal(\\'' + item.id + '\\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
-              actionButtons += '<button onclick="deleteCustomer(\\'' + item.id + '\\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
+              actionButtons += '<button onclick="openEditModal(\'' + item.id + '\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
+              actionButtons += '<button onclick="deleteCustomer(\'' + item.id + '\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
 
               tr.innerHTML = 
                 '<td class="p-3 text-gray-700 font-mono font-bold">' + (item.id !== undefined ? item.id : '') + '</td>' +
@@ -927,12 +927,12 @@ app.get('/dashboard', (req, res) => {[cite: 1]
   `);
 });
 
-// ================= ADMIN API ENDPOINTS =================[cite: 1]
-app.get('/api/admins', (req, res) => {[cite: 1]
+// ================= ADMIN API ENDPOINTS =================
+app.get('/api/admins', (req, res) => {
   res.json(getAdmins());
 });
 
-app.post('/api/admins', (req, res) => {[cite: 1]
+app.post('/api/admins', (req, res) => {
   const { username, password } = req.body;
   const admins = getAdmins();
   if (admins.some(a => a.username === username)) {
@@ -948,7 +948,7 @@ app.post('/api/admins', (req, res) => {[cite: 1]
   res.json(newAdmin);
 });
 
-app.delete('/api/admins/:id', (req, res) => {[cite: 1]
+app.delete('/api/admins/:id', (req, res) => {
   let admins = getAdmins();
   if (admins.length <= 1) {
     return res.status(400).json({ error: 'Hindi maaaring burahin ang nag-iisang admin.' });
@@ -958,14 +958,14 @@ app.delete('/api/admins/:id', (req, res) => {[cite: 1]
   res.json({ success: true });
 });
 
-// ================= INVOICES SUPABASE API =================[cite: 1]
-app.get('/api/invoices', async (req, res) => {[cite: 1]
+// ================= INVOICES SUPABASE API =================
+app.get('/api/invoices', async (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   const db = await getDB();
   res.json(db);
 });
 
-app.post('/api/invoices', async (req, res) => {[cite: 1]
+app.post('/api/invoices', async (req, res) => {
   try {
     const db = await getDB();
     const customId = req.body.id ? String(req.body.id).trim() : null;
@@ -1025,7 +1025,7 @@ app.post('/api/invoices', async (req, res) => {[cite: 1]
   }
 });
 
-app.put('/api/invoices/:id/pay', async (req, res) => {[cite: 1]
+app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const { data, error } = await supabase.from('invoices').update({
       status: "paid",
@@ -1040,7 +1040,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {[cite: 1]
   }
 });
 
-app.put('/api/invoices/:id', async (req, res) => {[cite: 1]
+app.put('/api/invoices/:id', async (req, res) => {
   try {
     const updatePayload = {};
     if (req.body.name !== undefined) updatePayload.name = req.body.name;
@@ -1062,7 +1062,7 @@ app.put('/api/invoices/:id', async (req, res) => {[cite: 1]
   }
 });
 
-app.delete('/api/invoices/:id', async (req, res) => {[cite: 1]
+app.delete('/api/invoices/:id', async (req, res) => {
   try {
     const { data, error } = await supabase.from('invoices').delete().eq('id', req.params.id).select();
     if (error) throw error;
@@ -1072,8 +1072,8 @@ app.delete('/api/invoices/:id', async (req, res) => {[cite: 1]
   }
 });
 
-// ================= EXCEL EXPORT ROUTE (15th & 30th) =================[cite: 1]
-app.get('/api/export-excel', async (req, res) => {[cite: 1]
+// ================= EXCEL EXPORT ROUTE (15th & 30th) =================
+app.get('/api/export-excel', async (req, res) => {
   let db = await getDB();
   const collectorQuery = (req.query.collector || '').toLowerCase();
 
