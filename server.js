@@ -284,7 +284,7 @@ app.get('/customer', (req, res) => {
               const prevMos = data.previousBalanceMonths || 0;
               document.getElementById('resPrevBalance').textContent = '₱' + (Number(data.previousBalance) || 0).toFixed(2) + ' (' + prevMos + ' buwan)';
               
-              const totalDue = (Number(data.amount) || 0) + (Number(data.previousBalance) || 0);
+              const totalDue = (data.status === 'disconnected') ? 0 : ((Number(data.amount) || 0) + (Number(data.previousBalance) || 0));
               document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
               
               const statusEl = document.getElementById('resStatus');
@@ -297,10 +297,12 @@ app.get('/customer', (req, res) => {
                 statusEl.className += 'bg-red-500/20 text-red-400 border border-red-500';
               } else if (data.status === 'reconnected') {
                 statusEl.className += 'bg-blue-500/20 text-blue-400 border border-blue-500';
+              } else if (data.status === 'disconnected') {
+                statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
               } else if (data.status === 'pullout') {
                 statusEl.className += 'bg-purple-500/20 text-purple-400 border border-purple-500';
               } else {
-                statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
+                statusEl.className += 'bg-gray-500/20 text-gray-400 border border-gray-500';
               }
 
               resultArea.classList.remove('hidden');
@@ -465,6 +467,12 @@ app.get('/dashboard', (req, res) => {
         </div>
       </div>
 
+      <!-- FLOATING SCROLL BUTTONS -->
+      <div class="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
+        <button onclick="scrollToTop()" class="bg-blue-600 hover:bg-blue-700 text-white w-11 h-11 rounded-full shadow-xl flex items-center justify-center font-bold text-lg transition transform hover:scale-105" title="Scroll to Top">▲</button>
+        <button onclick="scrollToBottom()" class="bg-blue-600 hover:bg-blue-700 text-white w-11 h-11 rounded-full shadow-xl flex items-center justify-center font-bold text-lg transition transform hover:scale-105" title="Scroll to Bottom">▼</button>
+      </div>
+
       <!-- EDIT MODAL -->
       <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
@@ -585,6 +593,14 @@ app.get('/dashboard', (req, res) => {
         var searchQuery = '';
         var allInvoices = [];
 
+        function scrollToTop() {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function scrollToBottom() {
+          window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
         function logout() {
           localStorage.removeItem('isLoggedIn');
           localStorage.removeItem('adminUser');
@@ -685,11 +701,14 @@ app.get('/dashboard', (req, res) => {
 
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
-              var totalDue = amount + prevBal;
+              
+              // Disconnected accounts will have 0 total due so it's not accumulated
+              var totalDue = (itemStatus === 'disconnected') ? 0 : (amount + prevBal);
+              
               var prevMos = item.previousBalanceMonths || 0;
               var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
 
-              var safeId = String(item.id !== undefined ? item.id : '').replace(/'/g, "\\'");
+              var safeId = String(item.id !== undefined ? item.id : '').replace(/'/g, "\\\\'");
               var actionButtons = '';
               if (itemStatus !== 'paid') {
                 actionButtons += '<button onclick="markPaid(\\'' + safeId + '\\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
@@ -707,7 +726,7 @@ app.get('/dashboard', (req, res) => {
                 '<td class="p-3 text-gray-800 font-medium">₱' + amount.toFixed(2) + '</td>' +
                 '<td class="p-3 text-red-600 font-semibold">₱' + prevBal.toFixed(2) + '</td>' +
                 '<td class="p-3 text-gray-600 font-medium">' + prevMos + ' mos</td>' +
-                '<td class="p-3 text-emerald-600 font-bold text-base">₱' + totalDue.toFixed(2) + '</td>' +
+                '<td class="p-3 text-emerald-600 font-bold text-base">' + (itemStatus === 'disconnected' ? '<span class="text-gray-400 font-normal text-xs">₱0.00 (Disc.)</span>' : '₱' + totalDue.toFixed(2)) + '</td>' +
                 '<td class="p-3">' +
                   '<span class="px-2.5 py-1 text-xs rounded-full font-bold uppercase ' + statusBadgeClass + '">' +
                     (itemStatus === 'pullout' ? 'PULL OUT' : itemStatus.toUpperCase()) +
@@ -1113,7 +1132,9 @@ app.get('/api/export-excel', async (req, res) => {
     let totalReceivables = 0;
 
     filteredData.forEach((item, index) => {
-      const totalDue = (Number(item.amount) || 0) + (Number(item.previousBalance) || 0);
+      const isDisc = (item.status || '').toLowerCase() === 'disconnected';
+      const totalDue = isDisc ? 0 : ((Number(item.amount) || 0) + (Number(item.previousBalance) || 0));
+      
       if (item.status === 'paid') totalCollected += totalDue;
       else if (item.status === 'unpaid') totalReceivables += totalDue;
 
