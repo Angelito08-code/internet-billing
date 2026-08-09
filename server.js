@@ -492,9 +492,12 @@ app.get('/dashboard', (req, res) => {
       <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
           <h2 class="text-xl font-bold text-gray-800 mb-4">Edit Customer Info</h2>
-          <input type="hidden" id="editId">
           
           <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Customer ID</label>
+              <input type="text" id="editId" class="w-full border px-3 py-1.5 rounded text-sm font-mono font-bold">
+            </div>
             <div>
               <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Customer Name</label>
               <input type="text" id="editName" class="w-full border px-3 py-1.5 rounded text-sm">
@@ -868,6 +871,7 @@ app.get('/dashboard', (req, res) => {
           var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
           if (!item) return;
 
+          document.getElementById('editModal').dataset.originalId = item.id;
           document.getElementById('editId').value = item.id;
           document.getElementById('editName').value = item.name || '';
           document.getElementById('editAddress').value = item.address || 'SAN AGUSTIN';
@@ -887,7 +891,8 @@ app.get('/dashboard', (req, res) => {
 
         async function saveEditedCustomer() {
           try {
-            var id = document.getElementById('editId').value;
+            var originalId = document.getElementById('editModal').dataset.originalId;
+            var newId = document.getElementById('editId').value.trim();
             var name = document.getElementById('editName').value;
             var address = document.getElementById('editAddress').value;
             var plan = document.getElementById('editPlan').value;
@@ -898,15 +903,21 @@ app.get('/dashboard', (req, res) => {
             var previousBalanceMonths = parseInt(document.getElementById('editPrevBalanceMonths').value, 10);
             var status = document.getElementById('editStatus').value;
 
+            if (!newId) {
+              alert('Please fill in the Customer ID.');
+              return;
+            }
+
             if (!name) {
               alert('Please fill in the customer name.');
               return;
             }
 
-            await fetch('/api/invoices/' + id, {
+            var res = await fetch('/api/invoices/' + originalId, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
+                id: newId,
                 name: name,
                 address: address,
                 plan: plan,
@@ -918,6 +929,12 @@ app.get('/dashboard', (req, res) => {
                 status: status
               })
             });
+
+            if (!res.ok) {
+              var errData = await res.json();
+              alert(errData.error || 'Changes were not saved.');
+              return;
+            }
 
             closeEditModal();
             loadData();
@@ -1123,23 +1140,65 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
 
 app.put('/api/invoices/:id', async (req, res) => {
   try {
-    const updatePayload = {};
-    if (req.body.name !== undefined) updatePayload.name = req.body.name;
-    if (req.body.address !== undefined) updatePayload.address = req.body.address;
-    if (req.body.plan !== undefined) updatePayload.plan = req.body.plan;
-    if (req.body.collector !== undefined) updatePayload.collector = req.body.collector;
-    if (req.body.dueDate !== undefined) updatePayload.dueDate = req.body.dueDate;
-    if (req.body.amount !== undefined) updatePayload.amount = parseFloat(req.body.amount);
-    if (req.body.previousBalance !== undefined) updatePayload.previousBalance = parseFloat(req.body.previousBalance);
-    if (req.body.previousBalanceMonths !== undefined) updatePayload.previousBalanceMonths = parseInt(req.body.previousBalanceMonths, 10);
-    if (req.body.status !== undefined) updatePayload.status = req.body.status;
+    const oldId = req.params.id;
+    const newId = req.body.id !== undefined ? String(req.body.id).trim() : oldId;
 
-    const { data, error } = await supabase.from('invoices').update(updatePayload).eq('id', req.params.id).select();
-    if (error) throw error;
+    const db = await getDB();
 
-    res.json(data[0] || { success: true });
+    if (newId !== oldId) {
+      if (db.some(inv => String(inv.id).toLowerCase() === newId.toLowerCase())) {
+        return res.status(400).json({ error: "Customer ID " + newId + " already exists." });
+      }
+    }
+
+    const existingItem = db.find(inv => String(inv.id) === String(oldId));
+    if (!existingItem) {
+      return res.status(404).json({ error: "Customer record not found." });
+    }
+
+    const updatedData = {
+      id: newId,
+      name: req.body.name !== undefined ? req.body.name : existingItem.name,
+      address: req.body.address !== undefined ? req.body.address : existingItem.address,
+      plan: req.body.plan !== undefined ? req.body.plan : existingItem.plan,
+      collector: req.body.collector !== undefined ? req.body.collector : existingItem.collector,
+      dueDate: req.body.dueDate !== undefined ? req.body.dueDate : existingItem.dueDate,
+      amount: req.body.amount !== undefined ? parseFloat(req.body.amount) : existingItem.amount,
+      previousBalance: req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : existingItem.previousBalance,
+      previousBalanceMonths: req.body.previousBalanceMonths !== undefined ? parseInt(req.body.previousBalanceMonths, 10) : existingItem.previousBalanceMonths,
+      status: req.body.status !== undefined ? req.body.status : existingItem.status
+    };
+
+    if (newId !== oldId) {
+      // Robust handling for primary key changes: delete old record and insert with new ID
+      const { error: deleteError } = await supabase.from('invoices').delete().eq('id', oldId);
+      if (deleteError) throw deleteError;
+
+      const { data: insertData, error: insertError } = await supabase.from('invoices').insert([updatedData]).select();
+      if (insertError) throw insertError;
+
+      return res.json(insertData[0] || updatedData);
+    } else {
+      const updatePayload = {
+        name: updatedData.name,
+        address: updatedData.address,
+        plan: updatedData.plan,
+        collector: updatedData.collector,
+        dueDate: updatedData.dueDate,
+        amount: updatedData.amount,
+        previousBalance: updatedData.previousBalance,
+        previousBalanceMonths: updatedData.previousBalanceMonths,
+        status: updatedData.status
+      };
+
+      const { data, error } = await supabase.from('invoices').update(updatePayload).eq('id', oldId).select();
+      if (error) throw error;
+
+      res.json(data[0] || { success: true });
+    }
   } catch (err) {
-    res.status(500).json({ error: "Changes were not saved" });
+    console.error("Error updating customer:", err);
+    res.status(500).json({ error: "Changes were not saved: " + err.message });
   }
 });
 
