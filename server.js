@@ -71,7 +71,6 @@ const getDB = async () => {
         due.setMonth(due.getMonth() + 1);
         const newDueDate = due.toISOString().split('T')[0];
 
-        // Huwag i-auto update ang previous balance ng free o disconnected kung sakaling lumipas ang buwan, o hayaan depende sa logic. Para sa free, karaniwan walang babayaran.
         if (item.status !== 'free') {
           await supabase.from('invoices').update({
             status: newStatus,
@@ -90,7 +89,7 @@ const getDB = async () => {
     }
     return db;
   } catch (err) {
-    console.error("Error sa pagbasa ng DB mula Supabase:", err);
+    console.error("Error reading DB from Supabase:", err);
     return [];
   }
 };
@@ -99,7 +98,7 @@ const getDB = async () => {
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
-    <html lang="tl">
+    <html lang="en">
     <head>
       <meta charset="UTF-8">
       <title>Login - RTECH Computer Center</title>
@@ -132,7 +131,7 @@ app.get('/', (req, res) => {
         </form>
 
         <div class="mt-6 text-center border-t border-white/10 pt-4">
-          <a href="/customer" class="text-xs text-blue-400 hover:underline">🔍 Customer Portal (Tingnan ang Bill gamit ang ID)</a>
+          <a href="/customer" class="text-xs text-blue-400 hover:underline">🔍 Customer Portal (View Bill using ID)</a>
         </div>
       </div>
 
@@ -156,11 +155,11 @@ app.get('/', (req, res) => {
               localStorage.setItem('adminUser', data.username);
               window.location.href = '/dashboard';
             } else {
-              errDiv.textContent = data.error || 'Mali ang username o password.';
+              errDiv.textContent = data.error || 'Invalid username or password.';
               errDiv.classList.remove('hidden');
             }
           } catch (err) {
-            errDiv.textContent = 'Hindi makakonekta sa server.';
+            errDiv.textContent = 'Cannot connect to the server.';
             errDiv.classList.remove('hidden');
           }
         }
@@ -178,7 +177,7 @@ app.post('/api/login', (req, res) => {
   if (admin) {
     res.json({ success: true, username: admin.username });
   } else {
-    res.status(401).json({ error: 'Mali ang username o password.' });
+    res.status(401).json({ error: 'Invalid username or password.' });
   }
 });
 
@@ -186,7 +185,7 @@ app.post('/api/login', (req, res) => {
 app.get('/customer', (req, res) => {
   res.send(`
     <!DOCTYPE html>
-    <html lang="tl">
+    <html lang="en">
     <head>
       <meta charset="UTF-8">
       <title>Customer Portal - RTECH Billing</title>
@@ -199,12 +198,12 @@ app.get('/customer', (req, res) => {
             <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full" onerror="this.src='https://via.placeholder.com/100?text=RTECH'">
           </div>
           <h1 class="text-xl font-bold tracking-wide">Customer Billing Portal</h1>
-          <p class="text-xs text-gray-300 mt-1">Ilagay ang iyong Customer ID para makita ang iyong account status.</p>
+          <p class="text-xs text-gray-300 mt-1">Enter your Customer ID to view your account status.</p>
         </div>
 
         <div class="flex gap-2 mb-6">
-          <input type="text" id="customerId" placeholder="Halimbawa: 1 o CUST-01" class="w-full bg-black/40 border border-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-white">
-          <button onclick="checkBill()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition shadow-lg">Tingnan</button>
+          <input type="text" id="customerId" placeholder="Example: 1 or CUST-01" class="w-full bg-black/40 border border-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 text-white">
+          <button onclick="checkBill()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition shadow-lg">View</button>
         </div>
 
         <div id="resultArea" class="hidden bg-black/40 border border-gray-700 rounded-xl p-5 space-y-3 text-sm">
@@ -213,7 +212,7 @@ app.get('/customer', (req, res) => {
             <span id="resId" class="font-mono font-bold text-blue-400"></span>
           </div>
           <div class="flex justify-between border-b border-gray-700 pb-2">
-            <span class="text-gray-400">Pangalan:</span>
+            <span class="text-gray-400">Name:</span>
             <span id="resName" class="font-semibold"></span>
           </div>
           <div class="flex justify-between border-b border-gray-700 pb-2">
@@ -237,7 +236,7 @@ app.get('/customer', (req, res) => {
             <span id="resAmount"></span>
           </div>
           <div class="flex justify-between border-b border-gray-700 pb-2">
-            <span class="text-gray-400">Previous Balance (Utang):</span>
+            <span class="text-gray-400">Previous Balance:</span>
             <span id="resPrevBalance" class="text-red-400 font-semibold"></span>
           </div>
           <div class="flex justify-between border-b border-gray-700 pb-2 bg-white/5 p-2 rounded">
@@ -253,7 +252,7 @@ app.get('/customer', (req, res) => {
         <div id="errorMsg" class="hidden bg-red-500/20 border border-red-500 text-red-200 text-xs p-3 rounded mb-4 text-center"></div>
 
         <div class="mt-6 text-center border-t border-white/10 pt-4">
-          <a href="/" class="text-xs text-gray-300 hover:underline">← Bumalik sa Admin Login</a>
+          <a href="/" class="text-xs text-gray-300 hover:underline">← Back to Admin Login</a>
         </div>
       </div>
 
@@ -264,7 +263,7 @@ app.get('/customer', (req, res) => {
           const resultArea = document.getElementById('resultArea');
 
           if (!id) {
-            errDiv.textContent = 'Mangyaring maglagay ng Customer ID.';
+            errDiv.textContent = 'Please enter a Customer ID.';
             errDiv.classList.remove('hidden');
             resultArea.classList.add('hidden');
             return;
@@ -285,7 +284,7 @@ app.get('/customer', (req, res) => {
               document.getElementById('resAmount').textContent = '₱' + (Number(data.amount) || 0).toFixed(2);
               
               const prevMos = data.previousBalanceMonths || 0;
-              document.getElementById('resPrevBalance').textContent = '₱' + (Number(data.previousBalance) || 0).toFixed(2) + ' (' + prevMos + ' buwan)';
+              document.getElementById('resPrevBalance').textContent = '₱' + (Number(data.previousBalance) || 0).toFixed(2) + ' (' + prevMos + ' month(s))';
               
               const totalDue = (data.status === 'disconnected' || data.status === 'free') ? 0 : ((Number(data.amount) || 0) + (Number(data.previousBalance) || 0));
               document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
@@ -312,12 +311,12 @@ app.get('/customer', (req, res) => {
 
               resultArea.classList.remove('hidden');
             } else {
-              errDiv.textContent = data.error || 'Hindi nahanap ang Customer ID na ito.';
+              errDiv.textContent = data.error || 'Customer ID not found.';
               errDiv.classList.remove('hidden');
               resultArea.classList.add('hidden');
             }
           } catch (err) {
-            errDiv.textContent = 'May problemang naganap sa koneksyon.';
+            errDiv.textContent = 'A connection error occurred.';
             errDiv.classList.remove('hidden');
           }
         }
@@ -331,7 +330,7 @@ app.get('/api/customer/:id', async (req, res) => {
   const db = await getDB();
   const customer = db.find(inv => String(inv.id).toLowerCase() === String(req.params.id).toLowerCase());
   if (!customer) {
-    return res.status(404).json({ error: 'Walang nahanap na record para sa Customer ID na ito.' });
+    return res.status(404).json({ error: 'No record found for this Customer ID.' });
   }
   res.json(customer);
 });
@@ -340,7 +339,7 @@ app.get('/api/customer/:id', async (req, res) => {
 app.get('/dashboard', (req, res) => {
   res.send(`
     <!DOCTYPE html>
-    <html lang="tl">
+    <html lang="en">
     <head>
       <meta charset="UTF-8">
       <title>Internet Billing System - RTECH</title>
@@ -408,7 +407,7 @@ app.get('/dashboard', (req, res) => {
           <!-- Add Customer Form -->
           <div class="flex flex-wrap gap-2 items-center bg-gray-50 p-2.5 rounded-lg border border-gray-200">
             <input type="text" id="newId" placeholder="ID (Auto)" class="border px-2.5 py-1.5 rounded text-sm w-24 focus:ring-1 focus:ring-blue-500">
-            <input type="text" id="newName" placeholder="Pangalan *" required class="border px-2.5 py-1.5 rounded text-sm w-36 font-medium focus:ring-1 focus:ring-blue-500">
+            <input type="text" id="newName" placeholder="Name *" required class="border px-2.5 py-1.5 rounded text-sm w-36 font-medium focus:ring-1 focus:ring-blue-500">
             
             <select id="newAddress" class="border px-2 py-1.5 rounded text-sm bg-white">
               <option value="SAN AGUSTIN">SAN AGUSTIN</option>
@@ -441,9 +440,15 @@ app.get('/dashboard', (req, res) => {
               <option value="Jake">Jake</option>
             </select>
 
-            <input type="number" id="newAmount" value="800" placeholder="Monthly ₱" class="border px-2.5 py-1.5 rounded text-sm w-28 font-medium focus:ring-1 focus:ring-blue-500">
+            <input type="number" id="newAmount" list="monthlyAmounts" value="800" placeholder="Monthly" class="border px-2.5 py-1.5 rounded text-sm w-28 font-medium focus:ring-1 focus:ring-blue-500">
+            <datalist id="monthlyAmounts">
+              <option value="800">
+              <option value="1000">
+              <option value="1200">
+              <option value="2000">
+            </datalist>
 
-            <input type="date" id="newDueDate" class="border px-2 py-1.5 rounded text-sm w-36">
+            <input type="text" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'" placeholder="Due Date" id="newDueDate" class="border px-2 py-1.5 rounded text-sm w-36">
             <button onclick="addSubscriber()" class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 font-semibold shadow transition duration-150 flex items-center gap-1">
               ➕ Add Customer
             </button>
@@ -533,11 +538,17 @@ app.get('/dashboard', (req, res) => {
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Monthly Amount (₱)</label>
-                <input type="number" id="editAmount" class="w-full border px-3 py-1.5 rounded text-sm">
+                <input type="number" id="editAmount" list="editMonthlyAmounts" placeholder="Monthly" class="w-full border px-3 py-1.5 rounded text-sm">
+                <datalist id="editMonthlyAmounts">
+                  <option value="800">
+                  <option value="1000">
+                  <option value="1200">
+                  <option value="2000">
+                </datalist>
               </div>
               <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date</label>
-                <input type="date" id="editDueDate" class="w-full border px-3 py-1.5 rounded text-sm">
+                <input type="text" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'" placeholder="Due Date" id="editDueDate" class="w-full border px-3 py-1.5 rounded text-sm">
               </div>
             </div>
             
@@ -547,7 +558,7 @@ app.get('/dashboard', (req, res) => {
                 <input type="number" id="editPrevBalance" class="w-full border px-3 py-1.5 rounded text-sm">
               </div>
               <div>
-                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Prev. Mos (Buwan)</label>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Prev. Mos (Months)</label>
                 <input type="number" id="editPrevBalanceMonths" class="w-full border px-3 py-1.5 rounded text-sm" placeholder="e.g. 1, 2">
               </div>
             </div>
@@ -696,7 +707,7 @@ app.get('/dashboard', (req, res) => {
             });
             
             if (filtered.length === 0) {
-              tbody.innerHTML = '<tr><td colspan="12" class="p-8 text-center text-gray-500 font-medium bg-gray-50">⚡ Walang nahanap na customer record. Magdagdag ng customer sa itaas upang lumabas dito.</td></tr>';
+              tbody.innerHTML = '<tr><td colspan="12" class="p-8 text-center text-gray-500 font-medium bg-gray-50">⚡ No customer records found. Add a customer above to display them here.</td></tr>';
               return;
             }
 
@@ -717,7 +728,6 @@ app.get('/dashboard', (req, res) => {
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
               
-              // Disconnected and Free accounts will have 0 total due so it's not accumulated
               var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free') ? 0 : (amount + prevBal);
               
               var prevMos = item.previousBalanceMonths || 0;
@@ -770,7 +780,7 @@ app.get('/dashboard', (req, res) => {
             await fetch('/api/invoices/' + id + '/pay', { method: 'PUT' });
             loadData();
           } catch (err) {
-            alert('Hindi ma-update ang payment status.');
+            alert('Cannot update payment status.');
           }
         }
 
@@ -786,7 +796,7 @@ app.get('/dashboard', (req, res) => {
             var dueDate = document.getElementById('newDueDate').value;
 
             if (!name) {
-              alert('⚠️ Mangyaring ilagay ang Pangalan ng Customer.');
+              alert('⚠️ Please enter the Customer Name.');
               document.getElementById('newName').focus();
               return;
             }
@@ -817,12 +827,12 @@ app.get('/dashboard', (req, res) => {
               document.getElementById('searchInput').value = '';
 
               await loadData();
-              alert('✅ Tagumpay na naidagdag si "' + name + '"!');
+              alert('✅ Successfully added "' + name + '"!');
             } else {
-              alert('❌ Error: ' + (data.error || 'May problemang naganap sa pag-save.'));
+              alert('❌ Error: ' + (data.error || 'An error occurred while saving.'));
             }
           } catch (err) {
-            alert('❌ Error sa koneksyon: ' + err.message);
+            alert('❌ Connection error: ' + err.message);
           }
         }
 
@@ -861,7 +871,7 @@ app.get('/dashboard', (req, res) => {
             var status = document.getElementById('editStatus').value;
 
             if (!name) {
-              alert('Paki-punuan ang pangalan ng customer.');
+              alert('Please fill in the customer name.');
               return;
             }
 
@@ -884,17 +894,17 @@ app.get('/dashboard', (req, res) => {
             closeEditModal();
             loadData();
           } catch (err) {
-            alert('Hindi na-save ang mga pagbabago.');
+            alert('Changes were not saved.');
           }
         }
 
         async function deleteCustomer(id) {
-          if (confirm('Sigurado ka bang gusto mong burahin ang customer na ito?')) {
+          if (confirm('Are you sure you want to delete this customer?')) {
             try {
               await fetch('/api/invoices/' + id, { method: 'DELETE' });
               loadData();
             } catch (err) {
-              alert('Hindi nabura ang customer.');
+              alert('Customer was not deleted.');
             }
           }
         }
@@ -929,7 +939,7 @@ app.get('/dashboard', (req, res) => {
           var username = document.getElementById('newAdminUser').value;
           var password = document.getElementById('newAdminPass').value;
           if (!username || !password) {
-            alert('Ilagay ang username at password.');
+            alert('Enter the username and password.');
             return;
           }
           try {
@@ -942,23 +952,23 @@ app.get('/dashboard', (req, res) => {
               document.getElementById('newAdminUser').value = '';
               document.getElementById('newAdminPass').value = '';
               loadAdminsList();
-              alert('Tagumpay na nakagawa ng bagong admin!');
+              alert('Successfully created a new admin!');
             } else {
               var err = await res.json();
-              alert(err.error || 'May problema.');
+              alert(err.error || 'There was a problem.');
             }
           } catch (err) {
-            alert('Error sa pag-add ng admin.');
+            alert('Error adding admin.');
           }
         }
 
         async function deleteAdmin(id) {
-          if (confirm('Siguradong gusto mong burahin ang admin na ito?')) {
+          if (confirm('Are you sure you want to delete this admin?')) {
             try {
               await fetch('/api/admins/' + id, { method: 'DELETE' });
               loadAdminsList();
             } catch (err) {
-              alert('Hindi nabura ang admin.');
+              alert('Admin was not deleted.');
             }
           }
         }
@@ -979,7 +989,7 @@ app.post('/api/admins', (req, res) => {
   const { username, password } = req.body;
   const admins = getAdmins();
   if (admins.some(a => a.username === username)) {
-    return res.status(400).json({ error: 'Mayroon nang ganyang username.' });
+    return res.status(400).json({ error: 'Username already exists.' });
   }
   const newAdmin = {
     id: admins.length > 0 ? admins[admins.length - 1].id + 1 : 1,
@@ -994,7 +1004,7 @@ app.post('/api/admins', (req, res) => {
 app.delete('/api/admins/:id', (req, res) => {
   let admins = getAdmins();
   if (admins.length <= 1) {
-    return res.status(400).json({ error: 'Hindi maaaring burahin ang nag-iisang admin.' });
+    return res.status(400).json({ error: 'Cannot delete the only admin.' });
   }
   admins = admins.filter(a => a.id != req.params.id);
   saveAdmins(admins);
@@ -1014,7 +1024,7 @@ app.post('/api/invoices', async (req, res) => {
     const customId = req.body.id ? String(req.body.id).trim() : null;
 
     if (customId && db.some(inv => String(inv.id).toLowerCase() === customId.toLowerCase())) {
-      return res.status(400).json({ error: "Mayroon nang umiiral na Customer ID na " + customId + ". Gumamit ng iba." });
+      return res.status(400).json({ error: "Customer ID " + customId + " already exists. Please use another one." });
     }
 
     let maxNumericId = 0;
@@ -1063,8 +1073,8 @@ app.post('/api/invoices', async (req, res) => {
 
     res.json(newItem);
   } catch (err) {
-    console.error("Error sa pag-save ng customer:", err);
-    res.status(500).json({ error: "Hindi ma-save ang customer: " + err.message });
+    console.error("Error saving customer:", err);
+    res.status(500).json({ error: "Cannot save customer: " + err.message });
   }
 });
 
@@ -1079,7 +1089,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     if (error) throw error;
     res.json(data[0] || { success: true });
   } catch (err) {
-    res.status(500).json({ error: "Hindi ma-update ang status" });
+    res.status(500).json({ error: "Cannot update status" });
   }
 });
 
@@ -1101,7 +1111,7 @@ app.put('/api/invoices/:id', async (req, res) => {
 
     res.json(data[0] || { success: true });
   } catch (err) {
-    res.status(500).json({ error: "Hindi na-save ang mga pagbabago" });
+    res.status(500).json({ error: "Changes were not saved" });
   }
 });
 
@@ -1111,7 +1121,7 @@ app.delete('/api/invoices/:id', async (req, res) => {
     if (error) throw error;
     res.json(data[0] || { success: true });
   } catch (err) {
-    res.status(500).json({ error: "Hindi nabura ang customer" });
+    res.status(500).json({ error: "Customer was not deleted" });
   }
 });
 
@@ -1260,7 +1270,7 @@ app.get('/api/export-excel', async (req, res) => {
 
   if (workbook.worksheets.length === 0) {
     const emptySheet = workbook.addWorksheet('No Data');
-    emptySheet.addRow(['Walang nahanap na record para sa export.']);
+    emptySheet.addRow(['No records found for export.']);
   }
 
   let exportFilename = 'rtech_billing_report.xlsx';
@@ -1275,5 +1285,5 @@ app.get('/api/export-excel', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log("🚀 RTECH Billing Server ay tumatakbo sa http://localhost:" + PORT);
+  console.log("🚀 RTECH Billing Server is running at http://localhost:" + PORT);
 });
