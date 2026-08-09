@@ -71,18 +71,21 @@ const getDB = async () => {
         due.setMonth(due.getMonth() + 1);
         const newDueDate = due.toISOString().split('T')[0];
 
-        await supabase.from('invoices').update({
-          status: newStatus,
-          previousBalance: newPrevBalance,
-          previousBalanceMonths: newPrevMonths,
-          dueDate: newDueDate
-        }).eq('id', item.id);
+        // Huwag i-auto update ang previous balance ng free o disconnected kung sakaling lumipas ang buwan, o hayaan depende sa logic. Para sa free, karaniwan walang babayaran.
+        if (item.status !== 'free') {
+          await supabase.from('invoices').update({
+            status: newStatus,
+            previousBalance: newPrevBalance,
+            previousBalanceMonths: newPrevMonths,
+            dueDate: newDueDate
+          }).eq('id', item.id);
 
-        item.status = newStatus;
-        item.previousBalance = newPrevBalance;
-        item.previousBalanceMonths = newPrevMonths;
-        item.dueDate = newDueDate;
-        updated = true;
+          item.status = newStatus;
+          item.previousBalance = newPrevBalance;
+          item.previousBalanceMonths = newPrevMonths;
+          item.dueDate = newDueDate;
+          updated = true;
+        }
       }
     }
     return db;
@@ -284,7 +287,7 @@ app.get('/customer', (req, res) => {
               const prevMos = data.previousBalanceMonths || 0;
               document.getElementById('resPrevBalance').textContent = '₱' + (Number(data.previousBalance) || 0).toFixed(2) + ' (' + prevMos + ' buwan)';
               
-              const totalDue = (data.status === 'disconnected') ? 0 : ((Number(data.amount) || 0) + (Number(data.previousBalance) || 0));
+              const totalDue = (data.status === 'disconnected' || data.status === 'free') ? 0 : ((Number(data.amount) || 0) + (Number(data.previousBalance) || 0));
               document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
               
               const statusEl = document.getElementById('resStatus');
@@ -301,6 +304,8 @@ app.get('/customer', (req, res) => {
                 statusEl.className += 'bg-yellow-500/20 text-yellow-400 border border-yellow-500';
               } else if (data.status === 'pullout') {
                 statusEl.className += 'bg-purple-500/20 text-purple-400 border border-purple-500';
+              } else if (data.status === 'free') {
+                statusEl.className += 'bg-cyan-500/20 text-cyan-400 border border-cyan-500';
               } else {
                 statusEl.className += 'bg-gray-500/20 text-gray-400 border border-gray-500';
               }
@@ -379,7 +384,7 @@ app.get('/dashboard', (req, res) => {
           </div>
         </div>
         
-        <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+        <div id="summary" class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6"></div>
 
         <!-- Controls, Search & Add Form -->
         <div class="flex flex-col lg:flex-row justify-between items-center gap-4 mb-6 border-b pb-4">
@@ -391,6 +396,7 @@ app.get('/dashboard', (req, res) => {
               <button onclick="filterStatus('disconnected')" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-sm font-medium hover:bg-yellow-200">Disconnected</button>
               <button onclick="filterStatus('reconnected')" class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium hover:bg-blue-200">Reconnected</button>
               <button onclick="filterStatus('pullout')" class="px-3 py-1 bg-purple-100 text-purple-700 rounded text-sm font-medium hover:bg-purple-200">Pull Out</button>
+              <button onclick="filterStatus('free')" class="px-3 py-1 bg-cyan-100 text-cyan-800 rounded text-sm font-medium hover:bg-cyan-200">Free</button>
             </div>
             
             <div class="flex items-center gap-1 ml-2">
@@ -552,6 +558,7 @@ app.get('/dashboard', (req, res) => {
                 <option value="disconnected">DISCONNECTED</option>
                 <option value="reconnected">RECONNECTED</option>
                 <option value="pullout">PULL OUT</option>
+                <option value="free">FREE</option>
               </select>
             </div>
           </div>
@@ -637,6 +644,7 @@ app.get('/dashboard', (req, res) => {
 
             var total = allInvoices.length;
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
+            var freeCount = allInvoices.filter(function(d) { return d && d.status === 'free'; }).length;
             
             var totalPaidAmount = allInvoices.filter(function(d) { return d && d.status === 'paid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
             var totalUnpaidAmount = allInvoices.filter(function(d) { return d && d.status === 'unpaid'; }).reduce(function(sum, d) { return sum + (Number(d.amount) || 0) + (Number(d.previousBalance) || 0); }, 0);
@@ -657,6 +665,10 @@ app.get('/dashboard', (req, res) => {
               '<div class="p-4 bg-gray-50 rounded border-l-4 border-yellow-500 shadow-sm">' +
                 '<div class="text-gray-500 text-xs font-medium">Disconnected Accounts</div>' +
                 '<div class="text-xl font-bold text-yellow-600">' + disconnectedCount + '</div>' +
+              '</div>' +
+              '<div class="p-4 bg-gray-50 rounded border-l-4 border-cyan-500 shadow-sm">' +
+                '<div class="text-gray-500 text-xs font-medium">Free Accounts</div>' +
+                '<div class="text-xl font-bold text-cyan-600">' + freeCount + '</div>' +
               '</div>';
 
             tbody.innerHTML = '';
@@ -698,12 +710,13 @@ app.get('/dashboard', (req, res) => {
               else if (itemStatus === 'disconnected') statusBadgeClass = 'bg-yellow-100 text-yellow-800 border border-yellow-300';
               else if (itemStatus === 'reconnected') statusBadgeClass = 'bg-blue-100 text-blue-700 border border-blue-300';
               else if (itemStatus === 'pullout') statusBadgeClass = 'bg-purple-100 text-purple-800 border border-purple-300';
+              else if (itemStatus === 'free') statusBadgeClass = 'bg-cyan-100 text-cyan-800 border border-cyan-300';
 
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
               
-              // Disconnected accounts will have 0 total due so it's not accumulated
-              var totalDue = (itemStatus === 'disconnected') ? 0 : (amount + prevBal);
+              // Disconnected and Free accounts will have 0 total due so it's not accumulated
+              var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free') ? 0 : (amount + prevBal);
               
               var prevMos = item.previousBalanceMonths || 0;
               var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
@@ -716,6 +729,15 @@ app.get('/dashboard', (req, res) => {
               actionButtons += '<button onclick="openEditModal(\\'' + safeId + '\\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
               actionButtons += '<button onclick="deleteCustomer(\\'' + safeId + '\\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
 
+              var totalDueDisplay = '';
+              if (itemStatus === 'disconnected') {
+                totalDueDisplay = '<span class="text-gray-400 font-normal text-xs">₱0.00 (Disc.)</span>';
+              } else if (itemStatus === 'free') {
+                totalDueDisplay = '<span class="text-cyan-600 font-semibold text-xs">₱0.00 (Free)</span>';
+              } else {
+                totalDueDisplay = '₱' + totalDue.toFixed(2);
+              }
+
               tr.innerHTML = 
                 '<td class="p-3 text-gray-700 font-mono font-bold">' + (item.id !== undefined ? item.id : '') + '</td>' +
                 '<td class="p-3 font-semibold text-gray-900">' + (item.name || '') + '</td>' +
@@ -726,7 +748,7 @@ app.get('/dashboard', (req, res) => {
                 '<td class="p-3 text-gray-800 font-medium">₱' + amount.toFixed(2) + '</td>' +
                 '<td class="p-3 text-red-600 font-semibold">₱' + prevBal.toFixed(2) + '</td>' +
                 '<td class="p-3 text-gray-600 font-medium">' + prevMos + ' mos</td>' +
-                '<td class="p-3 text-emerald-600 font-bold text-base">' + (itemStatus === 'disconnected' ? '<span class="text-gray-400 font-normal text-xs">₱0.00 (Disc.)</span>' : '₱' + totalDue.toFixed(2)) + '</td>' +
+                '<td class="p-3 text-emerald-600 font-bold text-base">' + totalDueDisplay + '</td>' +
                 '<td class="p-3">' +
                   '<span class="px-2.5 py-1 text-xs rounded-full font-bold uppercase ' + statusBadgeClass + '">' +
                     (itemStatus === 'pullout' ? 'PULL OUT' : itemStatus.toUpperCase()) +
@@ -1132,8 +1154,9 @@ app.get('/api/export-excel', async (req, res) => {
     let totalReceivables = 0;
 
     filteredData.forEach((item, index) => {
-      const isDisc = (item.status || '').toLowerCase() === 'disconnected';
-      const totalDue = isDisc ? 0 : ((Number(item.amount) || 0) + (Number(item.previousBalance) || 0));
+      const itemStatus = (item.status || '').toLowerCase();
+      const isExempt = itemStatus === 'disconnected' || itemStatus === 'free';
+      const totalDue = isExempt ? 0 : ((Number(item.amount) || 0) + (Number(item.previousBalance) || 0));
       
       if (item.status === 'paid') totalCollected += totalDue;
       else if (item.status === 'unpaid') totalReceivables += totalDue;
@@ -1177,6 +1200,7 @@ app.get('/api/export-excel', async (req, res) => {
           else if (item.status === 'disconnected') colorCode = 'B45309';
           else if (item.status === 'reconnected') colorCode = '1D4ED8';
           else if (item.status === 'pullout') colorCode = '6B21A8';
+          else if (item.status === 'free') colorCode = '0891B2';
           cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: colorCode } };
         }
       });
