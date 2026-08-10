@@ -286,7 +286,7 @@ app.get('/customer', (req, res) => {
               const prevMos = data.previousBalanceMonths || 0;
               document.getElementById('resPrevBalance').textContent = '₱' + (Number(data.previousBalance) || 0).toFixed(2) + ' (' + prevMos + ' month(s))';
               
-              const totalDue = (data.status === 'disconnected' || data.status === 'free') ? 0 : ((Number(data.amount) || 0) + (Number(data.previousBalance) || 0));
+              const totalDue = (data.status === 'disconnected' || data.status === 'free' || data.status === 'pullout') ? 0 : ((Number(data.amount) || 0) + (Number(data.previousBalance) || 0));
               document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
               
               const statusEl = document.getElementById('resStatus');
@@ -737,7 +737,7 @@ app.get('/dashboard', (req, res) => {
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
               
-              var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free') ? 0 : (amount + prevBal);
+              var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout') ? 0 : (amount + prevBal);
               
               var prevMos = item.previousBalanceMonths || 0;
               var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
@@ -755,6 +755,8 @@ app.get('/dashboard', (req, res) => {
                 totalDueDisplay = '<span class="text-gray-400 font-normal text-xs">₱0.00 (Disc.)</span>';
               } else if (itemStatus === 'free') {
                 totalDueDisplay = '<span class="text-cyan-600 font-semibold text-xs">₱0.00 (Free)</span>';
+              } else if (itemStatus === 'pullout') {
+                totalDueDisplay = '<span class="text-purple-600 font-semibold text-xs">₱0.00 (Pull Out)</span>';
               } else {
                 totalDueDisplay = '₱' + totalDue.toFixed(2);
               }
@@ -1170,7 +1172,6 @@ app.put('/api/invoices/:id', async (req, res) => {
     };
 
     if (newId !== oldId) {
-      // Robust handling for primary key changes: delete old record and insert with new ID
       const { error: deleteError } = await supabase.from('invoices').delete().eq('id', oldId);
       if (deleteError) throw deleteError;
 
@@ -1254,7 +1255,7 @@ app.get('/api/export-excel', async (req, res) => {
 
     filteredData.forEach((item, index) => {
       const itemStatus = (item.status || '').toLowerCase();
-      const isExempt = itemStatus === 'disconnected' || itemStatus === 'free';
+      const isExempt = itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout';
       const totalDue = isExempt ? 0 : ((Number(item.amount) || 0) + (Number(item.previousBalance) || 0));
       
       if (item.status === 'paid') totalCollected += totalDue;
