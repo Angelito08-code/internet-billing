@@ -53,6 +53,9 @@ const getDB = async () => {
       if (isNaN(due.getTime())) continue;
       due.setHours(0, 0, 0, 0);
 
+      // Kunin ang original billing day (hal. 15, 30, atbp.) para pantay ang rollover computation
+      const billingDay = due.getDate();
+
       let updatedThisItem = false;
       let newStatus = item.status;
       let newPrevBalance = Number(item.previousBalance) || 0;
@@ -74,7 +77,12 @@ const getDB = async () => {
             newStatus = 'unpaid';
           }
 
+          // Aligned & Uniform Month Rollover Computation para sa 15th, 30th, at iba pa
+          due.setDate(1);
           due.setMonth(due.getMonth() + 1);
+          const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
+          due.setDate(Math.min(billingDay, lastDayOfNewMonth));
+
           updatedThisItem = true;
         } else {
           break;
