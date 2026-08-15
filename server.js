@@ -297,7 +297,7 @@ app.get('/customer', (req, res) => {
               const prevMos = data.previousBalanceMonths || 0;
               document.getElementById('resPrevBalance').textContent = '₱' + (Number(data.previousBalance) || 0).toFixed(2) + ' (' + prevMos + ' month(s))';
               
-              const totalDue = (data.status === 'disconnected' || data.status === 'free' || data.status === 'pullout') ? 0 : (Number(data.previousBalance) || 0);
+              const totalDue = (data.status === 'disconnected' || data.status === 'free' || data.status === 'pullout') ? 0 : ((Number(data.previousBalance) || 0) + (Number(data.amount) || 0));
               document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
               
               const statusEl = document.getElementById('resStatus');
@@ -679,8 +679,8 @@ app.get('/dashboard', (req, res) => {
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             var freeCount = allInvoices.filter(function(d) { return d && d.status === 'free'; }).length;
             
-            var totalPaidAmount = allInvoices.filter(function(d) { return d && d.status === 'paid'; }).reduce(function(sum, d) { return sum + (Number(d.previousBalance) || 0); }, 0);
-            var totalUnpaidAmount = allInvoices.filter(function(d) { return d && d.status === 'unpaid'; }).reduce(function(sum, d) { return sum + (Number(d.previousBalance) || 0); }, 0);
+            var totalPaidAmount = allInvoices.filter(function(d) { return d && d.status === 'paid'; }).reduce(function(sum, d) { return sum + (Number(d.previousBalance) || 0) + (Number(d.amount) || 0); }, 0);
+            var totalUnpaidAmount = allInvoices.filter(function(d) { return d && d.status === 'unpaid'; }).reduce(function(sum, d) { return sum + (Number(d.previousBalance) || 0) + (Number(d.amount) || 0); }, 0);
 
             document.getElementById('summary').innerHTML = 
               '<div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 shadow-sm">' +
@@ -748,7 +748,7 @@ app.get('/dashboard', (req, res) => {
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
               
-              var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout') ? 0 : prevBal;
+              var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout') ? 0 : (prevBal + amount);
               
               var prevMos = item.previousBalanceMonths || 0;
               var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
@@ -1267,7 +1267,7 @@ app.get('/api/export-excel', async (req, res) => {
     filteredData.forEach((item, index) => {
       const itemStatus = (item.status || '').toLowerCase();
       const isExempt = itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout';
-      const totalDue = isExempt ? 0 : (Number(item.previousBalance) || 0);
+      const totalDue = isExempt ? 0 : ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0));
       
       if (item.status === 'paid') totalCollected += totalDue;
       else if (item.status === 'unpaid') totalReceivables += totalDue;
