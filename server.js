@@ -45,46 +45,58 @@ const getDB = async () => {
     
     let updated = false;
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     for (let item of db) {
       if (!item || !item.dueDate) continue;
-      const due = new Date(item.dueDate);
+      let due = new Date(item.dueDate);
       if (isNaN(due.getTime())) continue;
+      due.setHours(0, 0, 0, 0);
 
-      if (today.getFullYear() > due.getFullYear() || 
-         (today.getFullYear() === due.getFullYear() && today.getMonth() > due.getMonth())) {
-        
-        let newStatus = item.status;
-        let newPrevBalance = Number(item.previousBalance) || 0;
-        let newPrevMonths = Number(item.previousBalanceMonths) || 0;
+      let updatedThisItem = false;
+      let newStatus = item.status;
+      let newPrevBalance = Number(item.previousBalance) || 0;
+      let newPrevMonths = Number(item.previousBalanceMonths) || 0;
 
-        if (item.status === 'paid') {
-          newPrevBalance = 0;
-          newPrevMonths = 0;
-          newStatus = 'unpaid';
-        } else if (item.status === 'unpaid' || item.status === 'reconnected') {
-          newPrevBalance = newPrevBalance + (Number(item.amount) || 0);
-          newPrevMonths = newPrevMonths + 1;
-          newStatus = 'unpaid';
+      // Mag-roll over kapag umabot na sa 2 days bago ang due date (o lumampas na)
+      while (true) {
+        const triggerDate = new Date(due);
+        triggerDate.setDate(triggerDate.getDate() - 2);
+        triggerDate.setHours(0, 0, 0, 0);
+
+        if (today >= triggerDate) {
+          if (newStatus === 'paid') {
+            newPrevBalance = 0;
+            newPrevMonths = 0;
+            newStatus = 'unpaid';
+          } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
+            newPrevBalance = newPrevBalance + (Number(item.amount) || 0);
+            newPrevMonths = newPrevMonths + 1;
+            newStatus = 'unpaid';
+          }
+
+          due.setMonth(due.getMonth() + 1);
+          updatedThisItem = true;
+        } else {
+          break;
         }
+      }
 
-        due.setMonth(due.getMonth() + 1);
+      if (updatedThisItem && item.status !== 'free') {
         const newDueDate = due.toISOString().split('T')[0];
 
-        if (item.status !== 'free') {
-          await supabase.from('invoices').update({
-            status: newStatus,
-            previousBalance: newPrevBalance,
-            previousBalanceMonths: newPrevMonths,
-            dueDate: newDueDate
-          }).eq('id', item.id);
+        await supabase.from('invoices').update({
+          status: newStatus,
+          previousBalance: newPrevBalance,
+          previousBalanceMonths: newPrevMonths,
+          dueDate: newDueDate
+        }).eq('id', item.id);
 
-          item.status = newStatus;
-          item.previousBalance = newPrevBalance;
-          item.previousBalanceMonths = newPrevMonths;
-          item.dueDate = newDueDate;
-          updated = true;
-        }
+        item.status = newStatus;
+        item.previousBalance = newPrevBalance;
+        item.previousBalanceMonths = newPrevMonths;
+        item.dueDate = newDueDate;
+        updated = true;
       }
     }
     return db;
