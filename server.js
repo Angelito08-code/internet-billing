@@ -578,7 +578,7 @@ app.get('/dashboard', (req, res) => {
               </div>
               <div>
                 <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date</label>
-                <input type="text" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'" placeholder="Due Date" id="editDueDate" class="w-full border px-3 py-1.5 rounded text-sm">
+                <input type="date" id="editDueDate" class="w-full border px-3 py-1.5 rounded text-sm">
               </div>
             </div>
             
