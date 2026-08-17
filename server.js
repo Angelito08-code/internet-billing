@@ -61,31 +61,28 @@ const getDB = async () => {
       let newPrevBalance = Number(item.previousBalance) || 0;
       let newPrevMonths = Number(item.previousBalanceMonths) || 0;
 
-      while (true) {
-        const triggerDate = new Date(due);
-        triggerDate.setDate(triggerDate.getDate() - 2);
-        triggerDate.setHours(0, 0, 0, 0);
+      // Single-step rollover check to respect manually set past/current due dates safely
+      const triggerDate = new Date(due);
+      triggerDate.setDate(triggerDate.getDate() - 2);
+      triggerDate.setHours(0, 0, 0, 0);
 
-        if (today >= triggerDate) {
-          if (newStatus === 'paid') {
-            newPrevBalance = 0;
-            newPrevMonths = 0;
-            newStatus = 'unpaid';
-          } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
-            newPrevBalance = newPrevBalance + (Number(item.amount) || 0);
-            newPrevMonths = newPrevMonths + 1;
-            newStatus = 'unpaid';
-          }
-
-          due.setDate(1);
-          due.setMonth(due.getMonth() + 1);
-          const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
-          due.setDate(Math.min(billingDay, lastDayOfNewMonth));
-
-          updatedThisItem = true;
-        } else {
-          break;
+      if (today >= triggerDate) {
+        if (newStatus === 'paid') {
+          newPrevBalance = 0;
+          newPrevMonths = 0;
+          newStatus = 'unpaid';
+        } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
+          newPrevBalance = newPrevBalance + (Number(item.amount) || 0);
+          newPrevMonths = newPrevMonths + 1;
+          newStatus = 'unpaid';
         }
+
+        due.setDate(1);
+        due.setMonth(due.getMonth() + 1);
+        const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
+        due.setDate(Math.min(billingDay, lastDayOfNewMonth));
+
+        updatedThisItem = true;
       }
 
       if (updatedThisItem && item.status !== 'free') {
@@ -575,7 +572,7 @@ app.get('/dashboard', (req, res) => {
                 </datalist>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date</label>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date (Pwedeng Nakaraang Buwan)</label>
                 <input type="date" id="editDueDate" class="w-full border px-3 py-1.5 rounded text-sm">
               </div>
             </div>
