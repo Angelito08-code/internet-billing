@@ -572,7 +572,7 @@ app.get('/dashboard', (req, res) => {
                 </datalist>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date (Pwedeng Nakaraang Buwan)</label>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Due Date</label>
                 <input type="date" id="editDueDate" class="w-full border px-3 py-1.5 rounded text-sm">
               </div>
             </div>
