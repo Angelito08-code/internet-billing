@@ -49,6 +49,13 @@ const getDB = async () => {
 
     for (let item of db) {
       if (!item || !item.dueDate) continue;
+
+      // [FIX] Kung may skipRollover flag (ibig sabihin ay minualong in-edit ang due date sa nakaraang buwan), 
+      // laktawan ang auto-rollover para hindi ito gumalaw o umabante.
+      if (item.skipRollover) {
+        continue;
+      }
+
       let due = new Date(item.dueDate);
       if (isNaN(due.getTime())) continue;
       due.setHours(0, 0, 0, 0);
@@ -898,7 +905,6 @@ app.get('/dashboard', (req, res) => {
           document.getElementById('editPlan').value = item.plan || '50Mbps';
           document.getElementById('editCollector').value = item.collector ? item.collector.split(' ')[0] : 'Jefford';
           
-          // Fixed date format parsing for the HTML date input
           var formattedDueDate = '';
           if (item.dueDate) {
             formattedDueDate = item.dueDate.toString().split('T')[0];
@@ -1137,7 +1143,8 @@ app.post('/api/invoices', async (req, res) => {
       previousBalance: 0.00,
       previousBalanceMonths: 0,
       status: "unpaid",
-      dueDate: finalDueDate
+      dueDate: finalDueDate,
+      skipRollover: false
     };
 
     const { data, error } = await supabase.from('invoices').insert([newItem]);
@@ -1155,7 +1162,8 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const { data, error } = await supabase.from('invoices').update({
       status: "paid",
       previousBalance: 0.00,
-      previousBalanceMonths: 0
+      previousBalanceMonths: 0,
+      skipRollover: false // Pag binayaran na, pwede na ulit mag-rollover naturally sa susunod na buwan
     }).eq('id', req.params.id).select();
 
     if (error) throw error;
@@ -1183,6 +1191,10 @@ app.put('/api/invoices/:id', async (req, res) => {
       return res.status(404).json({ error: "Customer record not found." });
     }
 
+    // [FIX] Kapag in-edit ang due date, ise-set natin ang skipRollover sa true 
+    // para hindi ito galawin ng automatic monthly rollover.
+    const isDueDateChanged = req.body.dueDate !== undefined && req.body.dueDate !== existingItem.dueDate;
+
     const updatedData = {
       id: newId,
       name: req.body.name !== undefined ? req.body.name : existingItem.name,
@@ -1193,7 +1205,8 @@ app.put('/api/invoices/:id', async (req, res) => {
       amount: req.body.amount !== undefined ? parseFloat(req.body.amount) : existingItem.amount,
       previousBalance: req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : existingItem.previousBalance,
       previousBalanceMonths: req.body.previousBalanceMonths !== undefined ? parseInt(req.body.previousBalanceMonths, 10) : existingItem.previousBalanceMonths,
-      status: req.body.status !== undefined ? req.body.status : existingItem.status
+      status: req.body.status !== undefined ? req.body.status : existingItem.status,
+      skipRollover: isDueDateChanged ? true : (existingItem.skipRollover || false)
     };
 
     if (newId !== oldId) {
@@ -1214,7 +1227,8 @@ app.put('/api/invoices/:id', async (req, res) => {
         amount: updatedData.amount,
         previousBalance: updatedData.previousBalance,
         previousBalanceMonths: updatedData.previousBalanceMonths,
-        status: updatedData.status
+        status: updatedData.status,
+        skipRollover: updatedData.skipRollover
       };
 
       const { data, error } = await supabase.from('invoices').update(updatePayload).eq('id', oldId).select();
