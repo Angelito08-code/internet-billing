@@ -443,10 +443,12 @@ app.get('/dashboard', (req, res) => {
               <option value="LUCBAN">LUCBAN</option>
               <option value="GUIDDAM">GUIDDAM</option>
               <option value="BANNAG">BANNAG</option>
+              <option value="NARARAGAN">NARARAGAN</option>
               <option value="MACUGAY">MACUGAY</option>
+              <option value="CABAYU">CABAYU</option>
               <option value="BUNNONG">BUNNONG</option>
               <option value="BATAL">BATAL</option>
-              <option value="NARARAGAN">NARARAGAN</option>
+              
             </select>
 
             <select id="newPlan" class="border px-2 py-1.5 rounded text-sm bg-white">
