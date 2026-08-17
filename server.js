@@ -53,7 +53,6 @@ const getDB = async () => {
       if (isNaN(due.getTime())) continue;
       due.setHours(0, 0, 0, 0);
 
-      // Kunin ang original billing day (hal. 15, 30, atbp.) para pantay ang rollover computation
       const billingDay = due.getDate();
 
       let updatedThisItem = false;
@@ -77,7 +76,6 @@ const getDB = async () => {
             newStatus = 'unpaid';
           }
 
-          // Aligned & Uniform Month Rollover Computation para sa 15th, 30th, at iba pa
           due.setDate(1);
           due.setMonth(due.getMonth() + 1);
           const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
@@ -448,7 +446,6 @@ app.get('/dashboard', (req, res) => {
               <option value="CABAYU">CABAYU</option>
               <option value="BUNNONG">BUNNONG</option>
               <option value="BATAL">BATAL</option>
-              
             </select>
 
             <select id="newPlan" class="border px-2 py-1.5 rounded text-sm bg-white">
@@ -900,7 +897,14 @@ app.get('/dashboard', (req, res) => {
           document.getElementById('editAddress').value = item.address || 'SAN AGUSTIN';
           document.getElementById('editPlan').value = item.plan || '50Mbps';
           document.getElementById('editCollector').value = item.collector ? item.collector.split(' ')[0] : 'Jefford';
-          document.getElementById('editDueDate').value = item.dueDate || '';
+          
+          // Fixed date format parsing for the HTML date input
+          var formattedDueDate = '';
+          if (item.dueDate) {
+            formattedDueDate = item.dueDate.toString().split('T')[0];
+          }
+          document.getElementById('editDueDate').value = formattedDueDate;
+
           document.getElementById('editAmount').value = item.amount || 800;
           document.getElementById('editPrevBalance').value = item.previousBalance || 0;
           document.getElementById('editPrevBalanceMonths').value = item.previousBalanceMonths || 0;
