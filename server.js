@@ -699,12 +699,22 @@ app.get('/dashboard', (req, res) => {
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             var freeCount = allInvoices.filter(function(d) { return d && d.status === 'free'; }).length;
             
-            // Total Collected: sums up exact amountPaid from paid status (or defaults to full total due if not explicitly set)
+            // Total Collected: Kinukuha ang lahat ng na-collect (amountPaid)
             var totalPaidAmount = allInvoices
-              .filter(function(d) { return d && d.status === 'paid'; })
               .reduce(function(sum, d) { 
-                var paidVal = (d.amountPaid !== null && d.amountPaid !== undefined) ? Number(d.amountPaid) : ((Number(d.previousBalance) || 0) + (Number(d.amount) || 0));
+                var paidVal = Number(d.amountPaid) || 0;
+                if (d.status === 'paid' && paidVal === 0) {
+                  paidVal = (Number(d.previousBalance) || 0) + (Number(d.amount) || 0);
+                }
                 return sum + paidVal; 
+              }, 0);
+
+            // Total Receivables: Sumusuma sa natitirang Total Due (Prev. Balance + Monthly) ng mga unpaid accounts
+            var totalUnpaidAmount = allInvoices
+              .filter(function(d) { return d && (d.status === 'unpaid' || d.status === 'reconnected'); })
+              .reduce(function(sum, d) { 
+                var totalDue = (Number(d.previousBalance) || 0) + (Number(d.amount) || 0);
+                return sum + totalDue; 
               }, 0);
 
             // Total Receivables: calculates remaining balance for unpaid (subtracts any partial amountPaid)
@@ -1209,15 +1219,32 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     if (!item) return res.status(404).json({ error: "Customer not found" });
 
     const amountPaid = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
-    const totalDue = (Number(item.previousBalance) || 0) + (Number(item.amount) || 0);
+    const monthlyRate = Number(item.amount) || 800;
+    const oldPrevBal = Number(item.previousBalance) || 0;
+    const totalDue = oldPrevBal + monthlyRate;
 
     let newStatus = amountPaid >= totalDue ? "paid" : "unpaid";
-    let newPrevBalance = item.previousBalance;
-    let newPrevMonths = item.previousBalanceMonths;
+    let newPrevBalance = 0;
+    let newPrevMonths = 0;
 
     if (newStatus === "paid") {
       newPrevBalance = 0.00;
       newPrevMonths = 0;
+    } else {
+      // Kung partial payment, ibabawas muna sa Previous Balance
+      if (amountPaid <= oldPrevBal) {
+        newPrevBalance = Math.max(0, oldPrevBal - amountPaid);
+        // Awtomatikong ibabawas sa previous months batay sa monthly rate
+        if (monthlyRate > 0) {
+          newPrevMonths = Math.max(0, Math.round(newPrevBalance / monthlyRate));
+        } else {
+          newPrevMonths = 0;
+        }
+      } else {
+        // Kung lumagpas sa prev balance ang bayad, magiging 0 na ang prev balance at mos
+        newPrevBalance = 0;
+        newPrevMonths = 0;
+      }
     }
 
     const { data, error } = await supabase.from('invoices').update({
@@ -1227,12 +1254,8 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       previousBalanceMonths: newPrevMonths
     }).eq('id', req.params.id).select();
 
-    if (error) {
-      console.error("Supabase Error Details:", error);
-      throw error;
-    }
-
-    res.json(data && data[0] ? data[0] : { success: true });
+    if (error) throw error;
+    res.json(data[0] || { success: true });
   } catch (err) {
     console.error("Payment Update Error:", err);
     res.status(500).json({ error: "Cannot update status: " + err.message });
