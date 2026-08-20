@@ -698,10 +698,16 @@ app.get('/dashboard', (req, res) => {
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             var freeCount = allInvoices.filter(function(d) { return d && d.status === 'free'; }).length;
             
-            // Total Collected: Sum of amountPaid across all accounts
+            // Total Collected: Sum of amountPaid (or full total due if status is paid and amountPaid is 0)
             var totalPaidAmount = allInvoices
               .reduce(function(sum, d) { 
-                return sum + (Number(d.amountPaid) || 0); 
+                if (!d) return sum;
+                var paid = Number(d.amountPaid) || 0;
+                var status = (d.status || '').toLowerCase();
+                if (status === 'paid' && paid === 0) {
+                  paid = (Number(d.previousBalance) || 0) + (Number(d.amount) || 0);
+                }
+                return sum + paid; 
               }, 0);
 
             // Total Receivables: Sum of remaining balances for unpaid/reconnected accounts
@@ -1258,6 +1264,16 @@ app.put('/api/invoices/:id', async (req, res) => {
       return res.status(404).json({ error: "Customer record not found." });
     }
 
+    const updatedAmount = req.body.amount !== undefined ? parseFloat(req.body.amount) : existingItem.amount;
+    const updatedPrevBal = req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : existingItem.previousBalance;
+    let updatedAmountPaid = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : (existingItem.amountPaid || 0);
+    const updatedStatus = req.body.status !== undefined ? req.body.status : existingItem.status;
+
+    // Kung binago ang status sa 'paid' ngunit ang amountPaid ay 0 o hindi tinype, awtomatikong i-set ito sa buong total due
+    if (updatedStatus === 'paid' && (req.body.amountPaid === undefined || Number(req.body.amountPaid) === 0) && updatedAmountPaid === 0) {
+      updatedAmountPaid = (Number(updatedPrevBal) || 0) + (Number(updatedAmount) || 0);
+    }
+
     const updatedData = {
       id: newId,
       name: req.body.name !== undefined ? req.body.name : existingItem.name,
@@ -1265,11 +1281,11 @@ app.put('/api/invoices/:id', async (req, res) => {
       plan: req.body.plan !== undefined ? req.body.plan : existingItem.plan,
       collector: req.body.collector !== undefined ? req.body.collector : existingItem.collector,
       dueDate: req.body.dueDate !== undefined ? req.body.dueDate : existingItem.dueDate,
-      amount: req.body.amount !== undefined ? parseFloat(req.body.amount) : existingItem.amount,
-      previousBalance: req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : existingItem.previousBalance,
+      amount: updatedAmount,
+      previousBalance: updatedPrevBal,
       previousBalanceMonths: req.body.previousBalanceMonths !== undefined ? parseInt(req.body.previousBalanceMonths, 10) : existingItem.previousBalanceMonths,
-      amountPaid: req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : (existingItem.amountPaid || 0),
-      status: req.body.status !== undefined ? req.body.status : existingItem.status
+      amountPaid: updatedAmountPaid,
+      status: updatedStatus
     };
 
     if (newId !== oldId) {
@@ -1360,7 +1376,10 @@ app.get('/api/export-excel', async (req, res) => {
       const isExempt = itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout';
       const totalDue = isExempt ? 0 : ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0));
       
-      const actualPaid = Number(item.amountPaid) || 0;
+      let actualPaid = Number(item.amountPaid) || 0;
+      if (itemStatus === 'paid' && actualPaid === 0) {
+        actualPaid = totalDue;
+      }
       totalCollected += actualPaid;
 
       if (itemStatus === 'unpaid' || itemStatus === 'reconnected') {
