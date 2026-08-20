@@ -60,6 +60,7 @@ const getDB = async () => {
       let newStatus = item.status;
       let newPrevBalance = Number(item.previousBalance) || 0;
       let newPrevMonths = Number(item.previousBalanceMonths) || 0;
+      let newAmountPaid = Number(item.amountPaid) || 0;
 
       // Single-step rollover check to respect manually set past/current due dates safely
       const triggerDate = new Date(due);
@@ -70,10 +71,16 @@ const getDB = async () => {
         if (newStatus === 'paid') {
           newPrevBalance = 0;
           newPrevMonths = 0;
+          newAmountPaid = 0;
           newStatus = 'unpaid';
         } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
-          newPrevBalance = newPrevBalance + (Number(item.amount) || 0);
+          // Compute remaining unpaid balance if there was a partial payment before rollover
+          const totalDueBeforeRollover = newPrevBalance + (Number(item.amount) || 0);
+          const remainingUnpaid = Math.max(0, totalDueBeforeRollover - newAmountPaid);
+          
+          newPrevBalance = remainingUnpaid + (Number(item.amount) || 0);
           newPrevMonths = newPrevMonths + 1;
+          newAmountPaid = 0;
           newStatus = 'unpaid';
         }
 
@@ -92,12 +99,14 @@ const getDB = async () => {
           status: newStatus,
           previousBalance: newPrevBalance,
           previousBalanceMonths: newPrevMonths,
+          amountPaid: newAmountPaid,
           dueDate: newDueDate
         }).eq('id', item.id);
 
         item.status = newStatus;
         item.previousBalance = newPrevBalance;
         item.previousBalanceMonths = newPrevMonths;
+        item.amountPaid = newAmountPaid;
         item.dueDate = newDueDate;
         updated = true;
       }
@@ -588,16 +597,22 @@ app.get('/dashboard', (req, res) => {
               </div>
             </div>
 
-            <div>
-              <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Status</label>
-              <select id="editStatus" class="w-full border px-3 py-1.5 rounded text-sm bg-white font-semibold">
-                <option value="paid">PAID</option>
-                <option value="unpaid">UNPAID</option>
-                <option value="disconnected">DISCONNECTED</option>
-                <option value="reconnected">RECONNECTED</option>
-                <option value="pullout">PULL OUT</option>
-                <option value="free">FREE</option>
-              </select>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Amount Paid (₱)</label>
+                <input type="number" id="editAmountPaid" class="w-full border px-3 py-1.5 rounded text-sm" placeholder="0.00">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Status</label>
+                <select id="editStatus" class="w-full border px-3 py-1.5 rounded text-sm bg-white font-semibold">
+                  <option value="paid">PAID</option>
+                  <option value="unpaid">UNPAID</option>
+                  <option value="disconnected">DISCONNECTED</option>
+                  <option value="reconnected">RECONNECTED</option>
+                  <option value="pullout">PULL OUT</option>
+                  <option value="free">FREE</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -684,8 +699,23 @@ app.get('/dashboard', (req, res) => {
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             var freeCount = allInvoices.filter(function(d) { return d && d.status === 'free'; }).length;
             
-            var totalPaidAmount = allInvoices.filter(function(d) { return d && d.status === 'paid'; }).reduce(function(sum, d) { return sum + (Number(d.previousBalance) || 0) + (Number(d.amount) || 0); }, 0);
-            var totalUnpaidAmount = allInvoices.filter(function(d) { return d && d.status === 'unpaid'; }).reduce(function(sum, d) { return sum + (Number(d.previousBalance) || 0) + (Number(d.amount) || 0); }, 0);
+            // Total Collected: sums up exact amountPaid from paid status (or defaults to full total due if not explicitly set)
+            var totalPaidAmount = allInvoices
+              .filter(function(d) { return d && d.status === 'paid'; })
+              .reduce(function(sum, d) { 
+                var paidVal = (d.amountPaid !== null && d.amountPaid !== undefined) ? Number(d.amountPaid) : ((Number(d.previousBalance) || 0) + (Number(d.amount) || 0));
+                return sum + paidVal; 
+              }, 0);
+
+            // Total Receivables: calculates remaining balance for unpaid (subtracts any partial amountPaid)
+            var totalUnpaidAmount = allInvoices
+              .filter(function(d) { return d && d.status === 'unpaid'; })
+              .reduce(function(sum, d) { 
+                var totalDue = (Number(d.previousBalance) || 0) + (Number(d.amount) || 0);
+                var paidVal = Number(d.amountPaid) || 0;
+                var remainingBalance = Math.max(0, totalDue - paidVal);
+                return sum + remainingBalance; 
+              }, 0);
 
             document.getElementById('summary').innerHTML = 
               '<div class="p-4 bg-gray-50 rounded border-l-4 border-blue-500 shadow-sm">' +
@@ -803,11 +833,32 @@ app.get('/dashboard', (req, res) => {
         }
 
         async function markPaid(id) {
+          var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
+          if (!item) return;
+
+          var defaultTotalDue = (Number(item.previousBalance) || 0) + (Number(item.amount) || 0);
+          var inputVal = prompt("Enter amount paid by " + (item.name || 'Customer') + " (₱):", defaultTotalDue);
+          
+          if (inputVal === null) return;
+
+          var amountPaid = parseFloat(inputVal);
+          if (isNaN(amountPaid) || amountPaid < 0) {
+            alert("⚠️ Please enter a valid payment amount.");
+            return;
+          }
+
           try {
-            await fetch('/api/invoices/' + id + '/pay', { method: 'PUT' });
+            var res = await fetch('/api/invoices/' + id + '/pay', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ amountPaid: amountPaid })
+            });
+
+            if (!res.ok) throw new Error('Failed to update payment.');
+
             loadData();
           } catch (err) {
-            alert('Cannot update payment status.');
+            alert('❌ Cannot update payment status.');
           }
         }
 
@@ -905,6 +956,7 @@ app.get('/dashboard', (req, res) => {
           document.getElementById('editAmount').value = item.amount || 800;
           document.getElementById('editPrevBalance').value = item.previousBalance || 0;
           document.getElementById('editPrevBalanceMonths').value = item.previousBalanceMonths || 0;
+          document.getElementById('editAmountPaid').value = item.amountPaid || 0;
           document.getElementById('editStatus').value = item.status || 'unpaid';
           document.getElementById('editModal').classList.remove('hidden');
         }
@@ -925,6 +977,7 @@ app.get('/dashboard', (req, res) => {
             var amount = parseFloat(document.getElementById('editAmount').value);
             var previousBalance = parseFloat(document.getElementById('editPrevBalance').value);
             var previousBalanceMonths = parseInt(document.getElementById('editPrevBalanceMonths').value, 10);
+            var amountPaid = parseFloat(document.getElementById('editAmountPaid').value) || 0;
             var status = document.getElementById('editStatus').value;
 
             if (!newId) {
@@ -950,6 +1003,7 @@ app.get('/dashboard', (req, res) => {
                 amount: amount,
                 previousBalance: previousBalance,
                 previousBalanceMonths: previousBalanceMonths,
+                amountPaid: amountPaid,
                 status: status
               })
             });
@@ -1133,6 +1187,7 @@ app.post('/api/invoices', async (req, res) => {
       amount: parseFloat(req.body.amount) || 800,
       previousBalance: 0.00,
       previousBalanceMonths: 0,
+      amountPaid: 0.00,
       status: "unpaid",
       dueDate: finalDueDate
     };
@@ -1149,10 +1204,27 @@ app.post('/api/invoices', async (req, res) => {
 
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
+    const db = await getDB();
+    const item = db.find(inv => String(inv.id) === String(req.params.id));
+    if (!item) return res.status(404).json({ error: "Customer not found" });
+
+    const amountPaid = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
+    const totalDue = (Number(item.previousBalance) || 0) + (Number(item.amount) || 0);
+
+    let newStatus = amountPaid >= totalDue ? "paid" : "unpaid";
+    let newPrevBalance = item.previousBalance;
+    let newPrevMonths = item.previousBalanceMonths;
+
+    if (newStatus === "paid") {
+      newPrevBalance = 0.00;
+      newPrevMonths = 0;
+    }
+
     const { data, error } = await supabase.from('invoices').update({
-      status: "paid",
-      previousBalance: 0.00,
-      previousBalanceMonths: 0
+      status: newStatus,
+      amountPaid: amountPaid,
+      previousBalance: newPrevBalance,
+      previousBalanceMonths: newPrevMonths
     }).eq('id', req.params.id).select();
 
     if (error) throw error;
@@ -1190,6 +1262,7 @@ app.put('/api/invoices/:id', async (req, res) => {
       amount: req.body.amount !== undefined ? parseFloat(req.body.amount) : existingItem.amount,
       previousBalance: req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : existingItem.previousBalance,
       previousBalanceMonths: req.body.previousBalanceMonths !== undefined ? parseInt(req.body.previousBalanceMonths, 10) : existingItem.previousBalanceMonths,
+      amountPaid: req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : (existingItem.amountPaid || 0),
       status: req.body.status !== undefined ? req.body.status : existingItem.status
     };
 
@@ -1211,6 +1284,7 @@ app.put('/api/invoices/:id', async (req, res) => {
         amount: updatedData.amount,
         previousBalance: updatedData.previousBalance,
         previousBalanceMonths: updatedData.previousBalanceMonths,
+        amountPaid: updatedData.amountPaid,
         status: updatedData.status
       };
 
@@ -1280,8 +1354,13 @@ app.get('/api/export-excel', async (req, res) => {
       const isExempt = itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout';
       const totalDue = isExempt ? 0 : ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0));
       
-      if (item.status === 'paid') totalCollected += totalDue;
-      else if (item.status === 'unpaid') totalReceivables += totalDue;
+      const actualPaid = (item.status === 'paid') ? (item.amountPaid !== null && item.amountPaid !== undefined ? Number(item.amountPaid) : totalDue) : 0;
+      if (item.status === 'paid') {
+        totalCollected += actualPaid;
+      } else if (item.status === 'unpaid') {
+        const paidVal = Number(item.amountPaid) || 0;
+        totalReceivables += Math.max(0, totalDue - paidVal);
+      }
 
       const row = sheet.addRow([
         item.id,
