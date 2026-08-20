@@ -698,7 +698,7 @@ app.get('/dashboard', (req, res) => {
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             var freeCount = allInvoices.filter(function(d) { return d && d.status === 'free'; }).length;
             
-            // Total Collected: Strictly the sum of amountPaid across all accounts
+            // Total Collected: Sum of amountPaid across all accounts
             var totalPaidAmount = allInvoices
               .reduce(function(sum, d) { 
                 return sum + (Number(d.amountPaid) || 0); 
@@ -832,7 +832,7 @@ app.get('/dashboard', (req, res) => {
           var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
           if (!item) return;
 
-          var defaultTotalDue = (Number(item.previousBalance) || 0) + (Number(item.amount) || 0);
+          var defaultTotalDue = Math.max(0, ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0)) - (Number(item.amountPaid) || 0));
           var inputVal = prompt("Enter amount paid by " + (item.name || 'Customer') + " (₱):", defaultTotalDue);
           
           if (inputVal === null) return;
@@ -1210,11 +1210,11 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const oldPrevBal = Number(item.previousBalance) || 0;
     const totalDue = oldPrevBal + monthlyRate;
 
-    // Accumulate total amount paid
+    // Accumulate total amount paid correctly (adds only the inputted amount to existing accumulated paid)
     const existingPaid = Number(item.amountPaid) || 0;
     const totalAmountPaid = existingPaid + paymentInput;
 
-    const remainingBalance = Math.max(0, totalDue - paymentInput);
+    const remainingBalance = Math.max(0, totalDue - totalAmountPaid);
     const newStatus = remainingBalance <= 0 ? "paid" : "unpaid";
     
     let newPrevBalance = remainingBalance;
