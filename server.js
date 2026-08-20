@@ -698,6 +698,7 @@ app.get('/dashboard', (req, res) => {
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             var freeCount = allInvoices.filter(function(d) { return d && d.status === 'free'; }).length;
             
+            // Total Collected: Sum of all actual amountPaid across accounts
             var totalPaidAmount = allInvoices
               .reduce(function(sum, d) { 
                 var paidVal = Number(d.amountPaid) || 0;
@@ -707,11 +708,13 @@ app.get('/dashboard', (req, res) => {
                 return sum + paidVal; 
               }, 0);
 
+            // Total Receivables: Sum of remaining balances for unpaid/reconnected accounts
             var totalUnpaidAmount = allInvoices
               .filter(function(d) { return d && (d.status === 'unpaid' || d.status === 'reconnected'); })
               .reduce(function(sum, d) { 
                 var totalDue = (Number(d.previousBalance) || 0) + (Number(d.amount) || 0);
-                return sum + totalDue; 
+                var paid = Number(d.amountPaid) || 0;
+                return sum + Math.max(0, totalDue - paid); 
               }, 0);
 
             document.getElementById('summary').innerHTML = 
@@ -1199,43 +1202,39 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
+// ================= UPDATED PAYMENT LOGIC (ADDS TO PAID & DEDUCTS FROM UNPAID) =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const db = await getDB();
     const item = db.find(inv => String(inv.id) === String(req.params.id));
     if (!item) return res.status(404).json({ error: "Customer not found" });
 
-    const amountPaid = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
+    const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
     const monthlyRate = Number(item.amount) || 800;
     const oldPrevBal = Number(item.previousBalance) || 0;
     const totalDue = oldPrevBal + monthlyRate;
 
-    let newStatus = amountPaid >= totalDue ? "paid" : "unpaid";
-    let newPrevBalance = 0;
-    let newPrevMonths = 0;
+    // Track total amount paid (accumulate if multiple payments)
+    const existingPaid = Number(item.amountPaid) || 0;
+    const totalAmountPaid = existingPaid + paymentInput;
+
+    // Calculate remaining balance after this payment
+    const remainingBalance = Math.max(0, totalDue - paymentInput);
+    const newStatus = remainingBalance <= 0 ? "paid" : "unpaid";
+    
+    let newPrevBalance = remainingBalance;
+    let newPrevMonths = monthlyRate > 0 ? Number((newPrevBalance / monthlyRate).toFixed(1)) : 0;
 
     if (newStatus === "paid") {
-      newPrevBalance = 0.00;
+      newPrevBalance = 0;
       newPrevMonths = 0;
-    } else {
-      if (amountPaid <= oldPrevBal) {
-        newPrevBalance = Math.max(0, oldPrevBal - amountPaid);
-        if (monthlyRate > 0) {
-          newPrevMonths = Math.max(0, Math.round(newPrevBalance / monthlyRate));
-        } else {
-          newPrevMonths = 0;
-        }
-      } else {
-        newPrevBalance = 0;
-        newPrevMonths = 0;
-      }
     }
 
     const { data, error } = await supabase.from('invoices').update({
       status: newStatus,
-      amountPaid: amountPaid,
+      amountPaid: totalAmountPaid,
       previousBalance: newPrevBalance,
-      previousBalanceMonths: newPrevMonths
+      previousBalanceMonths: Math.round(newPrevMonths)
     }).eq('id', req.params.id).select();
 
     if (error) throw error;
