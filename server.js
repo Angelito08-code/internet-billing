@@ -698,14 +698,10 @@ app.get('/dashboard', (req, res) => {
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             var freeCount = allInvoices.filter(function(d) { return d && d.status === 'free'; }).length;
             
-            // Total Collected: Sum of all actual amountPaid across accounts
+            // Total Collected: Strictly the sum of amountPaid across all accounts
             var totalPaidAmount = allInvoices
               .reduce(function(sum, d) { 
-                var paidVal = Number(d.amountPaid) || 0;
-                if (d.status === 'paid' && paidVal === 0) {
-                  paidVal = (Number(d.previousBalance) || 0) + (Number(d.amount) || 0);
-                }
-                return sum + paidVal; 
+                return sum + (Number(d.amountPaid) || 0); 
               }, 0);
 
             // Total Receivables: Sum of remaining balances for unpaid/reconnected accounts
@@ -1202,7 +1198,7 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// ================= UPDATED PAYMENT LOGIC (ADDS TO PAID & DEDUCTS FROM UNPAID) =================
+// ================= PAYMENT LOGIC (STRICT AMOUNT PAID REFLECTION) =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const db = await getDB();
@@ -1214,11 +1210,10 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const oldPrevBal = Number(item.previousBalance) || 0;
     const totalDue = oldPrevBal + monthlyRate;
 
-    // Track total amount paid (accumulate if multiple payments)
+    // Accumulate total amount paid
     const existingPaid = Number(item.amountPaid) || 0;
     const totalAmountPaid = existingPaid + paymentInput;
 
-    // Calculate remaining balance after this payment
     const remainingBalance = Math.max(0, totalDue - paymentInput);
     const newStatus = remainingBalance <= 0 ? "paid" : "unpaid";
     
@@ -1320,7 +1315,7 @@ app.delete('/api/invoices/:id', async (req, res) => {
   }
 });
 
-// ================= EXCEL EXPORT ROUTE (15th & 30th) =================
+// ================= EXCEL EXPORT ROUTE =================
 app.get('/api/export-excel', async (req, res) => {
   let db = await getDB();
   const collectorQuery = (req.query.collector || '').toLowerCase();
@@ -1365,12 +1360,11 @@ app.get('/api/export-excel', async (req, res) => {
       const isExempt = itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout';
       const totalDue = isExempt ? 0 : ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0));
       
-      const actualPaid = (item.status === 'paid') ? (item.amountPaid !== null && item.amountPaid !== undefined ? Number(item.amountPaid) : totalDue) : 0;
-      if (item.status === 'paid') {
-        totalCollected += actualPaid;
-      } else if (item.status === 'unpaid') {
-        const paidVal = Number(item.amountPaid) || 0;
-        totalReceivables += Math.max(0, totalDue - paidVal);
+      const actualPaid = Number(item.amountPaid) || 0;
+      totalCollected += actualPaid;
+
+      if (itemStatus === 'unpaid' || itemStatus === 'reconnected') {
+        totalReceivables += Math.max(0, totalDue - actualPaid);
       }
 
       const row = sheet.addRow([
