@@ -62,7 +62,6 @@ const getDB = async () => {
       let newPrevMonths = Number(item.previousBalanceMonths) || 0;
       let newAmountPaid = Number(item.amountPaid) || 0;
 
-      // Single-step rollover check to respect manually set past/current due dates safely
       const triggerDate = new Date(due);
       triggerDate.setDate(triggerDate.getDate() - 2);
       triggerDate.setHours(0, 0, 0, 0);
@@ -74,7 +73,6 @@ const getDB = async () => {
           newAmountPaid = 0;
           newStatus = 'unpaid';
         } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
-          // Compute remaining unpaid balance if there was a partial payment before rollover
           const totalDueBeforeRollover = newPrevBalance + (Number(item.amount) || 0);
           const remainingUnpaid = Math.max(0, totalDueBeforeRollover - newAmountPaid);
           
@@ -544,10 +542,11 @@ app.get('/dashboard', (req, res) => {
                 <option value="LUCBAN">LUCBAN</option>
                 <option value="GUIDDAM">GUIDDAM</option>
                 <option value="BANNAG">BANNAG</option>
+                <option value="NARARAGAN">NARARAGAN</option>
                 <option value="MACUGAY">MACUGAY</option>
+                <option value="CABAYU">CABAYU</option>
                 <option value="BUNNONG">BUNNONG</option>
                 <option value="BATAL">BATAL</option>
-                <option value="NARARAGAN">NARARAGAN</option>
               </select>
             </div>
             <div class="grid grid-cols-2 gap-2">
@@ -699,7 +698,6 @@ app.get('/dashboard', (req, res) => {
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             var freeCount = allInvoices.filter(function(d) { return d && d.status === 'free'; }).length;
             
-            // Total Collected: Kinukuha ang lahat ng na-collect (amountPaid)
             var totalPaidAmount = allInvoices
               .reduce(function(sum, d) { 
                 var paidVal = Number(d.amountPaid) || 0;
@@ -709,22 +707,11 @@ app.get('/dashboard', (req, res) => {
                 return sum + paidVal; 
               }, 0);
 
-            // Total Receivables: Sumusuma sa natitirang Total Due (Prev. Balance + Monthly) ng mga unpaid accounts
             var totalUnpaidAmount = allInvoices
               .filter(function(d) { return d && (d.status === 'unpaid' || d.status === 'reconnected'); })
               .reduce(function(sum, d) { 
                 var totalDue = (Number(d.previousBalance) || 0) + (Number(d.amount) || 0);
                 return sum + totalDue; 
-              }, 0);
-
-            // Total Receivables: calculates remaining balance for unpaid (subtracts any partial amountPaid)
-            var totalUnpaidAmount = allInvoices
-              .filter(function(d) { return d && d.status === 'unpaid'; })
-              .reduce(function(sum, d) { 
-                var totalDue = (Number(d.previousBalance) || 0) + (Number(d.amount) || 0);
-                var paidVal = Number(d.amountPaid) || 0;
-                var remainingBalance = Math.max(0, totalDue - paidVal);
-                return sum + remainingBalance; 
               }, 0);
 
             document.getElementById('summary').innerHTML = 
@@ -1231,17 +1218,14 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       newPrevBalance = 0.00;
       newPrevMonths = 0;
     } else {
-      // Kung partial payment, ibabawas muna sa Previous Balance
       if (amountPaid <= oldPrevBal) {
         newPrevBalance = Math.max(0, oldPrevBal - amountPaid);
-        // Awtomatikong ibabawas sa previous months batay sa monthly rate
         if (monthlyRate > 0) {
           newPrevMonths = Math.max(0, Math.round(newPrevBalance / monthlyRate));
         } else {
           newPrevMonths = 0;
         }
       } else {
-        // Kung lumagpas sa prev balance ang bayad, magiging 0 na ang prev balance at mos
         newPrevBalance = 0;
         newPrevMonths = 0;
       }
