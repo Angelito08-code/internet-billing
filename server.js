@@ -1227,10 +1227,15 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       previousBalanceMonths: newPrevMonths
     }).eq('id', req.params.id).select();
 
-    if (error) throw error;
-    res.json(data[0] || { success: true });
+    if (error) {
+      console.error("Supabase Error Details:", error);
+      throw error;
+    }
+
+    res.json(data && data[0] ? data[0] : { success: true });
   } catch (err) {
-    res.status(500).json({ error: "Cannot update status" });
+    console.error("Payment Update Error:", err);
+    res.status(500).json({ error: "Cannot update status: " + err.message });
   }
 });
 
