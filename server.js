@@ -62,10 +62,11 @@ const getDB = async () => {
       let newPrevMonths = Number(item.previousBalanceMonths) || 0;
       let newAmountPaid = Number(item.amountPaid) || 0;
 
-      const rolloverCheckDate = new Date(due.getFullYear(), due.getMonth() + 1, 1);
-      rolloverCheckDate.setHours(0, 0, 0, 0);
+      const triggerDate = new Date(due);
+      triggerDate.setDate(triggerDate.getDate() - 2);
+      triggerDate.setHours(0, 0, 0, 0);
 
-      if (today >= rolloverCheckDate) {
+      if (today >= triggerDate) {
         if (newStatus === 'paid') {
           newPrevBalance = 0;
           newPrevMonths = 0;
@@ -789,13 +790,13 @@ app.get('/dashboard', (req, res) => {
               var prevMos = item.previousBalanceMonths || 0;
               var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
 
-              var safeId = String(item.id !== undefined ? item.id : '').replace(/'/g, "\\'");
+              var safeId = String(item.id !== undefined ? item.id : '').replace(/'/g, "\\\\'");
               var actionButtons = '';
               if (itemStatus !== 'paid') {
-                actionButtons += '<button onclick="markPaid(\'' + safeId + '\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
+                actionButtons += '<button onclick="markPaid(\\'' + safeId + '\\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
               }
-              actionButtons += '<button onclick="openEditModal(\'' + safeId + '\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
-              actionButtons += '<button onclick="deleteCustomer(\'' + safeId + '\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
+              actionButtons += '<button onclick="openEditModal(\\'' + safeId + '\\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
+              actionButtons += '<button onclick="deleteCustomer(\\'' + safeId + '\\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
 
               var totalDueDisplay = '';
               if (itemStatus === 'disconnected') {
@@ -1168,8 +1169,14 @@ app.post('/api/invoices', async (req, res) => {
       let month = today.getMonth();
       const targetDay = 30;
 
-      const lastDayCurrentMonth = new Date(year, month + 1, 0).getDate();
-      const calculatedDate = new Date(year, month, Math.min(targetDay, lastDayCurrentMonth));
+      if (today.getDate() > targetDay) {
+        month += 1;
+        if (month > 11) {
+          month = 0;
+          year += 1;
+        }
+      }
+      const calculatedDate = new Date(year, month, targetDay);
       finalDueDate = calculatedDate.toISOString().split('T')[0];
     }
 
