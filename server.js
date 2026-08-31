@@ -81,14 +81,6 @@ const getDB = async () => {
           newStatus = 'unpaid';
         }
 
-        // I-comment out o tanggalin ang mga linyang ito:
-        /*
-        due.setDate(1);
-        due.setMonth(due.getMonth() + 1);
-        const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
-        due.setDate(Math.min(billingDay, lastDayOfNewMonth));
-        */
-
         updatedThisItem = true;
       }
 
