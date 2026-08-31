@@ -43,11 +43,10 @@ const getDB = async () => {
       return String(idA).localeCompare(String(idB), undefined, { numeric: true, sensitivity: 'base' });
     });
     
-    // I-COMMENT OUT O TANGGALIN ANG BUONG LOOP NA NAG-AAUTO-ROLLOVER NG DUE DATE AT BALANCE:
-    /*
     let updated = false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const todayTotalMonths = today.getFullYear() * 12 + today.getMonth();
 
     for (let item of db) {
       if (!item || !item.dueDate) continue;
@@ -57,6 +56,7 @@ const getDB = async () => {
       due.setHours(0, 0, 0, 0);
 
       const billingDay = due.getDate();
+      const dueTotalMonths = due.getFullYear() * 12 + due.getMonth();
 
       let updatedThisItem = false;
       let newStatus = item.status;
@@ -64,11 +64,8 @@ const getDB = async () => {
       let newPrevMonths = Number(item.previousBalanceMonths) || 0;
       let newAmountPaid = Number(item.amountPaid) || 0;
 
-      const triggerDate = new Date(due);
-      triggerDate.setDate(triggerDate.getDate() - 2);
-      triggerDate.setHours(0, 0, 0, 0);
-
-      if (today >= triggerDate) {
+      // Mag-a-update at magre-rollover lamang kung ang kasalukuyang buwan ay lumampas na sa buwan ng due date
+      if (todayTotalMonths > dueTotalMonths) {
         if (newStatus === 'paid') {
           newPrevBalance = 0;
           newPrevMonths = 0;
@@ -83,8 +80,8 @@ const getDB = async () => {
           newStatus = 'unpaid';
         }
 
-        due.setDate(1);
-        due.setMonth(due.getMonth() + 1);
+        due.setFullYear(today.getFullYear());
+        due.setMonth(today.getMonth());
         const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
         due.setDate(Math.min(billingDay, lastDayOfNewMonth));
 
@@ -110,8 +107,6 @@ const getDB = async () => {
         updated = true;
       }
     }
-    */
-
     return db;
   } catch (err) {
     console.error("Error reading DB from Supabase:", err);
