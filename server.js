@@ -77,15 +77,17 @@ const getDB = async () => {
           const remainingUnpaid = Math.max(0, totalDueBeforeRollover - newAmountPaid);
           
           newPrevBalance = remainingUnpaid;
-          // previousBalanceMonths is not modified during rollover as requested
           newAmountPaid = 0;
           newStatus = 'unpaid';
         }
 
+        // I-comment out o tanggalin ang mga linyang ito para hindi umabante ang buwan ng Due Date:
+        /*
         due.setDate(1);
         due.setMonth(due.getMonth() + 1);
         const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
         due.setDate(Math.min(billingDay, lastDayOfNewMonth));
+        */
 
         updatedThisItem = true;
       }
