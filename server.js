@@ -76,8 +76,8 @@ const getDB = async () => {
           const totalDueBeforeRollover = newPrevBalance + (Number(item.amount) || 0);
           const remainingUnpaid = Math.max(0, totalDueBeforeRollover - newAmountPaid);
           
-          newPrevBalance = remainingUnpaid + (Number(item.amount) || 0);
-          newPrevMonths = newPrevMonths + 1;
+          newPrevBalance = remainingUnpaid;
+          // previousBalanceMonths is not modified during rollover as requested
           newAmountPaid = 0;
           newStatus = 'unpaid';
         }
