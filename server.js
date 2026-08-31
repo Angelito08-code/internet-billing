@@ -1,3 +1,85 @@
+
+Pakikipag-usap sa Gemini
+sa DUE DATE dapat ang nakikita ko ay ang buwan ng AUGUST hindi yung susunod na buwan
+
+Para manatiling August ang lumalabas sa Due Date (at hindi lumipat agad sa susunod na buwan tulad ng September), kailangang baguhin ang dalawang bahagi sa iyong Node.js code:
+
+Automatic Rollover Logic sa getDB(): Sa halip na mag-trigger 2 araw bago ang due date (na nagiging dahilan para mag-advance agad ang buwan kahit August pa), dapat itong mag-rollover lamang kapag lumipat na ng ibang buwan ang today (today.getMonth() > due.getMonth()).
+
+New Customer Due Date Creation: Alisin ang kondisyon na nagdaragdag ng 1 buwan kapag lumagpas ang araw sa targetDay (hal. August 31), para ang bagong customer ay mabigyan din ng due date para sa buwan ng August.
+
+Narito ang binagong bahagi ng iyong code:
+
+1. Pagbabago sa getDB() Rollover Condition
+Hanapin ang bahaging ito sa iyong getDB() function:
+
+JavaScript
+      // ITAMA ITO: Palitan ang triggerDate logic para mag-rollover lamang sa susunod na buwan kapag lumipas na ang kasalukuyang buwan
+      const rolloverCheckDate = new Date(due.getFullYear(), due.getMonth() + 1, 1);
+      rolloverCheckDate.setHours(0, 0, 0, 0);
+
+      if (today >= rolloverCheckDate) {
+        if (newStatus === 'paid') {
+          newPrevBalance = 0;
+          newPrevMonths = 0;
+          newAmountPaid = 0;
+          newStatus = 'unpaid';
+        } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
+          const totalDueBeforeRollover = newPrevBalance + (Number(item.amount) || 0);
+          const remainingUnpaid = Math.max(0, totalDueBeforeRollover - newAmountPaid);
+          
+          newPrevBalance = remainingUnpaid;
+          newAmountPaid = 0;
+          newStatus = 'unpaid';
+        }
+
+        due.setDate(1);
+        due.setMonth(due.getMonth() + 1);
+        const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
+        due.setDate(Math.min(billingDay, lastDayOfNewMonth));
+
+        updatedThisItem = true;
+      }
+2. Pagbabago sa paglikha ng Due Date para sa Bagong Customer (app.post('/api/invoices'))
+Hanapin ang bahaging ito sa pag-add ng invoice:
+
+JavaScript
+    let finalDueDate = req.body.dueDate;
+    if (!finalDueDate) {
+      const today = new Date();
+      let year = today.getFullYear();
+      let month = today.getMonth();
+      const targetDay = 30;
+
+      // Panatilihin sa kasalukuyang buwan (August) ang due date ng bagong customer
+      const lastDayCurrentMonth = new Date(year, month + 1, 0).getDate();
+      const calculatedDate = new Date(year, month, Math.min(targetDay, lastDayCurrentMonth));
+      finalDueDate = calculatedDate.toISOString().split('T')[0];
+    }
+Sa mga pagbabagong ito, mananatiling August ang makikita mong Due Date sa iyong dashboard hangga't nasa buwan pa tayo ng August, at mag-a-update lamang ito patungong September kapag sumapit na ang mismong buwan ng September.
+
+ilagay mo na sa buong code
+
+Buo at na-update na ang iyong Node.js code (server.js). Ang mga sumusunod na pagbabago ay naisama na:
+
+Tamang Rollover Condition: Hindi na mag-a-advance ang Due Date patungong susunod na buwan (tulad ng September) nang maaga. Mananatili ito sa buong buwan ng August at mag-a-update lamang kapag sumapit na ang ika-1 ng sumunod na buwan (today >= rolloverCheckDate).
+
+New Customer Creation: Ang mga bagong customer na idinaragdag sa buwan ng August ay bibigyan na rin ng due date para sa buwan ng August at hindi na lumilipat agad sa September.
+
+Ang iyong na-update na server file ay handa na:
+
+Icon ng JS
+server
+ JS 
+Buksan
+Maaari mo na itong gamitin sa iyong proyekto!
+
+
+
+
+AI ang Gemini at puwede itong magkamali.
+
+Sinusuri
 const express = require('express');
 const path = require('path');
 const ExcelJS = require('exceljs');
@@ -62,11 +144,10 @@ const getDB = async () => {
       let newPrevMonths = Number(item.previousBalanceMonths) || 0;
       let newAmountPaid = Number(item.amountPaid) || 0;
 
-      const triggerDate = new Date(due);
-      triggerDate.setDate(triggerDate.getDate() - 2);
-      triggerDate.setHours(0, 0, 0, 0);
+      const rolloverCheckDate = new Date(due.getFullYear(), due.getMonth() + 1, 1);
+      rolloverCheckDate.setHours(0, 0, 0, 0);
 
-      if (today >= triggerDate) {
+      if (today >= rolloverCheckDate) {
         if (newStatus === 'paid') {
           newPrevBalance = 0;
           newPrevMonths = 0;
@@ -790,13 +871,13 @@ app.get('/dashboard', (req, res) => {
               var prevMos = item.previousBalanceMonths || 0;
               var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
 
-              var safeId = String(item.id !== undefined ? item.id : '').replace(/'/g, "\\\\'");
+              var safeId = String(item.id !== undefined ? item.id : '').replace(/'/g, "\\'");
               var actionButtons = '';
               if (itemStatus !== 'paid') {
-                actionButtons += '<button onclick="markPaid(\\'' + safeId + '\\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
+                actionButtons += '<button onclick="markPaid(\'' + safeId + '\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
               }
-              actionButtons += '<button onclick="openEditModal(\\'' + safeId + '\\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
-              actionButtons += '<button onclick="deleteCustomer(\\'' + safeId + '\\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
+              actionButtons += '<button onclick="openEditModal(\'' + safeId + '\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
+              actionButtons += '<button onclick="deleteCustomer(\'' + safeId + '\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
 
               var totalDueDisplay = '';
               if (itemStatus === 'disconnected') {
@@ -1169,14 +1250,8 @@ app.post('/api/invoices', async (req, res) => {
       let month = today.getMonth();
       const targetDay = 30;
 
-      if (today.getDate() > targetDay) {
-        month += 1;
-        if (month > 11) {
-          month = 0;
-          year += 1;
-        }
-      }
-      const calculatedDate = new Date(year, month, targetDay);
+      const lastDayCurrentMonth = new Date(year, month + 1, 0).getDate();
+      const calculatedDate = new Date(year, month, Math.min(targetDay, lastDayCurrentMonth));
       finalDueDate = calculatedDate.toISOString().split('T')[0];
     }
 
@@ -1500,3 +1575,5 @@ app.get('/api/export-excel', async (req, res) => {
 app.listen(PORT, () => {
   console.log("🚀 RTECH Billing Server is running at http://localhost:" + PORT);
 });
+server.js
+Ipinapakita ang server.js.
