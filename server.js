@@ -26,6 +26,24 @@ if (!fs.existsSync(ADMIN_FILE)) {
 const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
 const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));
 
+// Helper para maiwasan ang timezone offset issues sa mga petsa
+const parseLocalDate = (dateStr) => {
+  if (!dateStr) return new Date();
+  const cleanStr = String(dateStr).split('T')[0];
+  const parts = cleanStr.split('-');
+  if (parts.length === 3) {
+    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  }
+  return new Date(dateStr);
+};
+
+const formatLocalDate = (dateObj) => {
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const getDB = async () => {
   try {
     const { data, error } = await supabase.from('invoices').select('*').order('id', { ascending: true });
@@ -51,7 +69,7 @@ const getDB = async () => {
     for (let item of db) {
       if (!item || !item.dueDate) continue;
 
-      let due = new Date(item.dueDate);
+      let due = parseLocalDate(item.dueDate);
       if (isNaN(due.getTime())) continue;
       due.setHours(0, 0, 0, 0);
 
@@ -89,7 +107,7 @@ const getDB = async () => {
       }
 
       if (updatedThisItem && item.status !== 'free') {
-        const newDueDate = due.toISOString().split('T')[0];
+        const newDueDate = formatLocalDate(due);
 
         await supabase.from('invoices').update({
           status: newStatus,
@@ -696,7 +714,6 @@ app.get('/dashboard', (req, res) => {
             var disconnectedCount = allInvoices.filter(function(d) { return d && d.status === 'disconnected'; }).length;
             var freeCount = allInvoices.filter(function(d) { return d && d.status === 'free'; }).length;
             
-            // Total Collected: Sum of amountPaid (or full total due if status is paid and amountPaid is 0)
             var totalPaidAmount = allInvoices
               .reduce(function(sum, d) { 
                 if (!d) return sum;
@@ -708,7 +725,6 @@ app.get('/dashboard', (req, res) => {
                 return sum + paid; 
               }, 0);
 
-            // Total Receivables: Sum of remaining balances for unpaid/reconnected accounts
             var totalUnpaidAmount = allInvoices
               .filter(function(d) { return d && (d.status === 'unpaid' || d.status === 'reconnected'); })
               .reduce(function(sum, d) { 
@@ -1175,7 +1191,7 @@ app.post('/api/invoices', async (req, res) => {
         }
       }
       const calculatedDate = new Date(year, month, targetDay);
-      finalDueDate = calculatedDate.toISOString().split('T')[0];
+      finalDueDate = formatLocalDate(calculatedDate);
     }
 
     const newItem = {
@@ -1202,7 +1218,7 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// ================= PAYMENT LOGIC (STRICT AMOUNT PAID REFLECTION) =================
+// ================= PAYMENT LOGIC =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const db = await getDB();
@@ -1214,7 +1230,6 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const oldPrevBal = Number(item.previousBalance) || 0;
     const totalDue = oldPrevBal + monthlyRate;
 
-    // Accumulate total amount paid correctly (adds only the inputted amount to existing accumulated paid)
     const existingPaid = Number(item.amountPaid) || 0;
     const totalAmountPaid = existingPaid + paymentInput;
 
@@ -1267,7 +1282,6 @@ app.put('/api/invoices/:id', async (req, res) => {
     let updatedAmountPaid = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : (existingItem.amountPaid || 0);
     const updatedStatus = req.body.status !== undefined ? req.body.status : existingItem.status;
 
-    // Kung binago ang status sa 'paid' ngunit ang amountPaid ay 0 o hindi tinype, awtomatikong i-set ito sa buong total due
     if (updatedStatus === 'paid' && (req.body.amountPaid === undefined || Number(req.body.amountPaid) === 0) && updatedAmountPaid === 0) {
       updatedAmountPaid = (Number(updatedPrevBal) || 0) + (Number(updatedAmount) || 0);
     }
@@ -1456,7 +1470,7 @@ app.get('/api/export-excel', async (req, res) => {
   const filterByDueDate = (items, is15th) => {
     return items.filter(item => {
       if (!item.dueDate) return false;
-      const day = new Date(item.dueDate).getDate();
+      const day = parseLocalDate(item.dueDate).getDate();
       return is15th ? (day <= 15) : (day > 15);
     });
   };
