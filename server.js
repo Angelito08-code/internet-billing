@@ -849,34 +849,43 @@ app.get('/dashboard', (req, res) => {
         }
 
         async function markPaid(id) {
-          var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
-          if (!item) return;
+  var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
+  if (!item) return;
 
-          var defaultTotalDue = Math.max(0, ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0)) - (Number(item.amountPaid) || 0));
-          var inputVal = prompt("Enter amount paid by " + (item.name || 'Customer') + " (₱):", defaultTotalDue);
-          
-          if (inputVal === null) return;
+  var defaultTotalDue = Math.max(0, ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0)) - (Number(item.amountPaid) || 0));
+  
+  // 1. Tanungin ang buwan na binabayaran
+  var paidMonth = prompt("Ilagay ang buwan na binabayaran (Halimbawa: September 2026):", "");
+  if (paidMonth === null) return; // Kinansela ng user
 
-          var amountPaid = parseFloat(inputVal);
-          if (isNaN(amountPaid) || amountPaid < 0) {
-            alert("⚠️ Please enter a valid payment amount.");
-            return;
-          }
+  // 2. Tanungin ang amount na binayad
+  var inputVal = prompt("Enter amount paid by " + (item.name || 'Customer') + " para sa buwan ng " + paidMonth + " (₱):", defaultTotalDue);
+  if (inputVal === null) return;
 
-          try {
-            var res = await fetch('/api/invoices/' + id + '/pay', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ amountPaid: amountPaid })
-            });
+  var amountPaid = parseFloat(inputVal);
+  if (isNaN(amountPaid) || amountPaid < 0) {
+    alert("⚠️ Please enter a valid payment amount.");
+    return;
+  }
 
-            if (!res.ok) throw new Error('Failed to update payment.');
+  try {
+    var res = await fetch('/api/invoices/' + id + '/pay', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        amountPaid: amountPaid, 
+        paidMonth: paidMonth 
+      })
+    });
 
-            loadData();
-          } catch (err) {
-            alert('❌ Cannot update payment status.');
-          }
-        }
+    if (!res.ok) throw new Error('Failed to update payment.');
+
+    loadData();
+    alert('✅ Matagumpay na naitala ang bayad para sa buwan ng ' + paidMonth + '!');
+  } catch (err) {
+    alert('❌ Cannot update payment status.');
+  }
+}
 
         async function addSubscriber() {
           try {
@@ -1226,6 +1235,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     if (!item) return res.status(404).json({ error: "Customer not found" });
 
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
+    const paidMonth = req.body.paidMonth || ''; // Tinatanggap ang buwan na binabayaran
     const monthlyRate = Number(item.amount) || 800;
     const oldPrevBal = Number(item.previousBalance) || 0;
     const totalDue = oldPrevBal + monthlyRate;
@@ -1239,16 +1249,22 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     let newPrevBalance = remainingBalance;
     let newPrevMonths = monthlyRate > 0 ? Number((newPrevBalance / monthlyRate).toFixed(1)) : 0;
 
+    let currentDueDate = parseLocalDate(item.dueDate);
     if (newStatus === "paid") {
       newPrevBalance = 0;
       newPrevMonths = 0;
+      // Kapag fully paid na, i-a-advance natin ang due date sa susunod na buwan
+      currentDueDate.setMonth(currentDueDate.getMonth() + 1);
     }
+
+    const newDueDateFormatted = formatLocalDate(currentDueDate);
 
     const { data, error } = await supabase.from('invoices').update({
       status: newStatus,
       amountPaid: totalAmountPaid,
       previousBalance: newPrevBalance,
-      previousBalanceMonths: Math.round(newPrevMonths)
+      previousBalanceMonths: Math.round(newPrevMonths),
+      dueDate: newDueDateFormatted
     }).eq('id', req.params.id).select();
 
     if (error) throw error;
