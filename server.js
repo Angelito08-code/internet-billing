@@ -139,16 +139,16 @@ app.get('/', (req, res) => {
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Login - RTECH Computer Center</title>
+      <title>Login - R-TECH Computer Center</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-gradient-to-br from-blue-950 via-gray-900 to-black min-h-screen flex items-center justify-center p-4 font-sans">
       <div class="bg-white/15 backdrop-blur-md border border-white/20 rounded-2xl p-8 max-w-md w-full shadow-2xl text-white">
         <div class="text-center mb-6">
           <div class="bg-white p-2 rounded-full w-28 h-28 mx-auto mb-3 flex items-center justify-center border-2 border-blue-500 shadow-lg overflow-hidden">
-            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full" onerror="this.src='https://via.placeholder.com/100?text=RTECH'">
+            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full" onerror="this.src='https://via.placeholder.com/100?text=R-TECH'">
           </div>
-          <h1 class="text-2xl font-bold tracking-wide mt-2">RTECH Billing System</h1>
+          <h1 class="text-2xl font-bold tracking-wide mt-2">R-TECH Billing System</h1>
           <p class="text-xs text-gray-300 mt-1">Sign in to your admin account</p>
         </div>
 
@@ -226,14 +226,14 @@ app.get('/customer', (req, res) => {
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Customer Portal - RTECH Billing</title>
+      <title>Customer Portal - R-TECH Billing</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-gradient-to-br from-blue-950 via-gray-900 to-black min-h-screen flex items-center justify-center p-4 font-sans">
       <div class="bg-white/15 backdrop-blur-md border border-white/20 rounded-2xl p-8 max-w-lg w-full shadow-2xl text-white">
         <div class="text-center mb-6">
           <div class="bg-white p-2 rounded-full w-20 h-20 mx-auto mb-3 flex items-center justify-center border-2 border-blue-500 shadow-lg overflow-hidden">
-            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full" onerror="this.src='https://via.placeholder.com/100?text=RTECH'">
+            <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full" onerror="this.src='https://via.placeholder.com/100?text=R-TECH'">
           </div>
           <h1 class="text-xl font-bold tracking-wide">Customer Billing Portal</h1>
           <p class="text-xs text-gray-300 mt-1">Enter your Customer ID to view your account status.</p>
@@ -380,7 +380,7 @@ app.get('/dashboard', (req, res) => {
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Internet Billing System - RTECH</title>
+      <title>Internet Billing System - R-TECH</title>
       <script src="https://cdn.tailwindcss.com"></script>
     </head>
     <body class="bg-gray-100 p-6 font-sans">
@@ -394,11 +394,11 @@ app.get('/dashboard', (req, res) => {
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 border-b pb-4 gap-4">
           <div class="flex items-center gap-3">
             <div class="bg-white p-1.5 rounded-full w-16 h-16 flex items-center justify-center border border-blue-500 shadow overflow-hidden">
-              <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full" onerror="this.src='https://via.placeholder.com/100?text=RTECH'">
+              <img src="/logo.png" alt="Logo" class="w-full h-full object-contain rounded-full" onerror="this.src='https://via.placeholder.com/100?text=R-TECH'">
             </div>
             <div>
               <h1 class="text-2xl font-bold text-gray-800">Internet Billing & Payment Tracker</h1>
-              <p class="text-xs text-gray-500">RTECH Computer Center Management</p>
+              <p class="text-xs text-gray-500">R-TECH Computer Center Management</p>
             </div>
           </div>
 
@@ -1349,7 +1349,7 @@ app.get('/api/export-excel', async (req, res) => {
   const collectorQuery = (req.query.collector || '').toLowerCase();
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'RTECH Computer Center';
+  workbook.creator = 'R-TECH Computer Center';
 
   const addCollectorSheet = (sheetName, reportTitle, filteredData) => {
     const sheet = workbook.addWorksheet(sheetName);
@@ -1510,5 +1510,5 @@ app.get('/api/export-excel', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log("🚀 RTECH Billing Server is running at http://localhost:" + PORT);
+  console.log("🚀 R-TECH Billing Server is running at http://localhost:" + PORT);
 });
