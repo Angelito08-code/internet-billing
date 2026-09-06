@@ -1235,7 +1235,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     if (!item) return res.status(404).json({ error: "Customer not found" });
 
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
-    const paidMonth = req.body.paidMonth || ''; // Tinatanggap ang buwan na binabayaran
+    const paidMonth = req.body.paidMonth || ''; 
     const monthlyRate = Number(item.amount) || 800;
     const oldPrevBal = Number(item.previousBalance) || 0;
     const totalDue = oldPrevBal + monthlyRate;
@@ -1253,8 +1253,8 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     if (newStatus === "paid") {
       newPrevBalance = 0;
       newPrevMonths = 0;
-      // Kapag fully paid na, i-a-advance natin ang due date sa susunod na buwan
-      currentDueDate.setMonth(currentDueDate.getMonth() + 1);
+      // Hininto na ang pag-a-advance ng due date sa susunod na buwan kapag nagbayad
+      // currentDueDate.setMonth(currentDueDate.getMonth() + 1); 
     }
 
     const newDueDateFormatted = formatLocalDate(currentDueDate);
