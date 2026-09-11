@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3000;
 
 // ================= SUPABASE CONFIGURATION =================
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cytckucqmcyubwbhyhsx.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE0MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInRefiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE4MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const ADMIN_FILE = path.join(__dirname, 'admins.json');
@@ -81,6 +81,7 @@ const getDB = async () => {
       let newPrevBalance = Number(item.previousBalance) || 0;
       let newPrevMonths = Number(item.previousBalanceMonths) || 0;
       let newAmountPaid = Number(item.amountPaid) || 0;
+      const monthlyAmount = Number(item.amount) || 0;
 
       // Mag-a-update at magre-rollover lamang kung ang kasalukuyang buwan ay lumampas na sa buwan ng due date
       if (todayTotalMonths > dueTotalMonths) {
@@ -90,10 +91,11 @@ const getDB = async () => {
           newAmountPaid = 0;
           newStatus = 'unpaid';
         } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
-          const totalDueBeforeRollover = newPrevBalance + (Number(item.amount) || 0);
-          const remainingUnpaid = Math.max(0, totalDueBeforeRollover - newAmountPaid);
+          // IDINADAGDAG ANG PREVIOUS BALANCE AT ANG UNPAID MONTHLY AMOUNT NG NAKARAANG BUWAN
+          const totalUnpaidBeforeRollover = (newPrevBalance + monthlyAmount) - newAmountPaid;
           
-          newPrevBalance = remainingUnpaid;
+          newPrevBalance = Math.max(0, totalUnpaidBeforeRollover);
+          newPrevMonths = monthlyAmount > 0 ? Math.round((newPrevBalance / monthlyAmount) * 10) / 10 : 0;
           newAmountPaid = 0;
           newStatus = 'unpaid';
         }
@@ -1280,12 +1282,9 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const newStatus = remainingBalance <= 0 ? "paid" : "unpaid";
     
     // 3. I-update ang Previous Balance batay sa natirang utang
-    let newPrevBalance = remainingBalance;
-    let newPrevMonths = monthlyRate > 0 ? (newPrevBalance / monthlyRate) : 0;
-
+    let newPrevBalance = oldPrevBal;
     if (newStatus === "paid") {
       newPrevBalance = 0;
-      newPrevMonths = 0;
     }
 
     const currentDueDate = parseLocalDate(item.dueDate);
@@ -1296,7 +1295,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       status: newStatus,
       amountPaid: totalAmountPaid,
       previousBalance: newPrevBalance,
-      previousBalanceMonths: Math.round(newPrevMonths * 10) / 10,
+      previousBalanceMonths: monthlyRate > 0 ? Math.round((newPrevBalance / monthlyRate) * 10) / 10 : 0,
       dueDate: newDueDateFormatted
     }).eq('id', req.params.id).select();
 
