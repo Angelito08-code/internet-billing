@@ -84,29 +84,32 @@ const getDB = async () => {
       const monthlyAmount = Number(item.amount) || 0;
 
       // Mag-a-update at magre-rollover lamang kung ang kasalukuyang buwan ay lumampas na sa buwan ng due date
-      if (todayTotalMonths > dueTotalMonths) {
-        if (newStatus === 'paid') {
-          newPrevBalance = 0;
-          newPrevMonths = 0;
-          newAmountPaid = 0;
-          newStatus = 'unpaid';
-        } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
-          // IDINADAGDAG ANG PREVIOUS BALANCE AT ANG UNPAID MONTHLY AMOUNT NG NAKARAANG BUWAN
-          const totalUnpaidBeforeRollover = (newPrevBalance + monthlyAmount) - newAmountPaid;
-          
-          newPrevBalance = Math.max(0, totalUnpaidBeforeRollover);
-          newPrevMonths = monthlyAmount > 0 ? Math.round((newPrevBalance / monthlyAmount) * 10) / 10 : 0;
-          newAmountPaid = 0;
-          newStatus = 'unpaid';
-        }
+      let tempDueMonths = dueTotalMonths;
 
-        due.setFullYear(today.getFullYear());
-        due.setMonth(today.getMonth());
-        const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
-        due.setDate(Math.min(billingDay, lastDayOfNewMonth));
+while (todayTotalMonths > tempDueMonths) {
+  if (newStatus === 'paid') {
+    newPrevBalance = 0;
+    newPrevMonths = 0;
+    newAmountPaid = 0;
+    newStatus = 'unpaid';
+  } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
+    const totalUnpaidBeforeRollover = (newPrevBalance + monthlyAmount) - newAmountPaid;
+    newPrevBalance = Math.max(0, totalUnpaidBeforeRollover);
+    newPrevMonths = monthlyAmount > 0 ? Math.round((newPrevBalance / monthlyAmount) * 10) / 10 : 0;
+    newAmountPaid = 0;
+    newStatus = 'unpaid';
+  }
 
-        updatedThisItem = true;
-      }
+  // I-increment ang buwan nang paisa-isa hanggang maabot ang kasalukuyang buwan
+  due.setMonth(due.getMonth() + 1);
+  tempDueMonths = due.getFullYear() * 12 + due.getMonth();
+  updatedThisItem = true;
+}
+
+if (updatedThisItem) {
+  const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
+  due.setDate(Math.min(billingDay, lastDayOfNewMonth));
+}
 
       if (updatedThisItem && item.status !== 'free') {
         const newDueDate = formatLocalDate(due);
