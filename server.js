@@ -324,7 +324,9 @@ app.get('/customer', (req, res) => {
               const prevMos = data.previousBalanceMonths || 0;
               document.getElementById('resPrevBalance').textContent = '₱' + (Number(data.previousBalance) || 0).toFixed(2) + ' (' + prevMos + ' month(s))';
               
-              const totalDue = (data.status === 'disconnected' || data.status === 'free' || data.status === 'pullout') ? 0 : Math.max(0, ((Number(data.previousBalance) || 0) + (Number(data.amount) || 0)) - (Number(data.amountPaid) || 0));
+              // AUTOMATIC TOTAL DUE: (Previous Balance + Monthly Amount) - Amount Paid
+              const calculatedTotalDue = (Number(data.previousBalance) || 0) + (Number(data.amount) || 0) - (Number(data.amountPaid) || 0);
+              const totalDue = (data.status === 'disconnected' || data.status === 'free' || data.status === 'pullout') ? 0 : Math.max(0, calculatedTotalDue);
               document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
               
               const statusEl = document.getElementById('resStatus');
@@ -800,6 +802,7 @@ app.get('/dashboard', (req, res) => {
               var prevBal = Number(item.previousBalance) || 0;
               var paidVal = Number(item.amountPaid) || 0;
               
+              // AUTOMATIC TOTAL DUE CALCULATION: (Previous Balance + Monthly Amount) - Amount Paid
               var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout') ? 0 : Math.max(0, (prevBal + amount) - paidVal);
               
               var prevMos = item.previousBalanceMonths || 0;
@@ -807,7 +810,6 @@ app.get('/dashboard', (req, res) => {
 
               var safeId = String(item.id !== undefined ? item.id : '').replace(/'/g, "\\\\'");
               
-              // ACTION BUTTONS WITH UNDO FEATURE
               var actionButtons = '';
               if (itemStatus !== 'paid') {
                 actionButtons += '<button onclick="markPaid(\\'' + safeId + '\\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
@@ -857,6 +859,7 @@ app.get('/dashboard', (req, res) => {
           var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
           if (!item) return;
 
+          // Automatikong Total Due bilang default payment amount
           var defaultTotalDue = Math.max(0, ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0)) - (Number(item.amountPaid) || 0));
           
           var paidMonth = prompt("Ilagay ang buwan na binabayaran (Halimbawa: September 2026):", "");
@@ -894,7 +897,7 @@ app.get('/dashboard', (req, res) => {
           var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
           if (!item) return;
 
-          if (confirm("Sigurado ka bang gusto mong I-UNDO ang bayad ni " + (item.name || 'Customer') + "? Iba-bawas ang nailagay na bayad at ibabalik sa UNPAID.")) {
+          if (confirm("Sigurado ka bang gusto mong I-UNDO ang bayad ni " + (item.name || 'Customer') + "? Ibabalik sa UNPAID status.")) {
             try {
               var res = await fetch('/api/invoices/' + id + '/undo-pay', {
                 method: 'PUT',
@@ -1251,36 +1254,44 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// ================= PAYMENT LOGIC =================
+// ================= PAYMENT LOGIC (AUTOMATIC PREV BAL & TOTAL DUE) =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const db = await getDB();
     const item = db.find(inv => String(inv.id) === String(req.params.id));
     if (!item) return res.status(404).json({ error: "Customer not found" });
 
+    // 1. Kunan ang ibinayad sa transaction na ito
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
-    const paidMonth = req.body.paidMonth || ''; 
     const monthlyRate = Number(item.amount) || 800;
     const oldPrevBal = Number(item.previousBalance) || 0;
-    const totalDue = oldPrevBal + monthlyRate;
 
+    // Total Due bago ang bagong bayad = Previous Balance + Monthly Rate
+    const totalDueBeforePayment = oldPrevBal + monthlyRate;
+
+    // Bagong Kabuuang Naisumiteng Bayad
     const existingPaid = Number(item.amountPaid) || 0;
     const totalAmountPaid = existingPaid + paymentInput;
 
-    const remainingBalance = Math.max(0, totalDue - totalAmountPaid);
+    // 2. Ibawas ang ibinayad sa Total Due
+    const remainingBalance = Math.max(0, totalDueBeforePayment - totalAmountPaid);
+    
+    // Status update: Paid kapag 0 na ang naiwang balanse, Unpaid kapag may natitira pa
     const newStatus = remainingBalance <= 0 ? "paid" : "unpaid";
     
+    // 3. I-update ang Previous Balance batay sa natirang utang
     let newPrevBalance = remainingBalance;
     let newPrevMonths = monthlyRate > 0 ? (newPrevBalance / monthlyRate) : 0;
 
-    let currentDueDate = parseLocalDate(item.dueDate);
     if (newStatus === "paid") {
       newPrevBalance = 0;
       newPrevMonths = 0;
     }
 
+    const currentDueDate = parseLocalDate(item.dueDate);
     const newDueDateFormatted = formatLocalDate(currentDueDate);
 
+    // 4. Save updates to Supabase
     const { data, error } = await supabase.from('invoices').update({
       status: newStatus,
       amountPaid: totalAmountPaid,
@@ -1304,6 +1315,7 @@ app.put('/api/invoices/:id/undo-pay', async (req, res) => {
     const item = db.find(inv => String(inv.id) === String(req.params.id));
     if (!item) return res.status(404).json({ error: "Customer not found" });
 
+    // I-reset ang amountPaid at ibalik ang status sa unpaid
     const { data, error } = await supabase.from('invoices').update({
       status: 'unpaid',
       amountPaid: 0.00
@@ -1317,6 +1329,7 @@ app.put('/api/invoices/:id/undo-pay', async (req, res) => {
   }
 });
 
+// ================= EDIT CUSTOMER LOGIC =================
 app.put('/api/invoices/:id', async (req, res) => {
   try {
     const oldId = req.params.id;
@@ -1336,13 +1349,19 @@ app.put('/api/invoices/:id', async (req, res) => {
     }
 
     const updatedAmount = req.body.amount !== undefined ? parseFloat(req.body.amount) : existingItem.amount;
-    const updatedPrevBal = req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : existingItem.previousBalance;
+    let updatedPrevBal = req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : existingItem.previousBalance;
     let updatedAmountPaid = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : (existingItem.amountPaid || 0);
-    const updatedStatus = req.body.status !== undefined ? req.body.status : existingItem.status;
+    let updatedStatus = req.body.status !== undefined ? req.body.status : existingItem.status;
 
-    if (updatedStatus === 'paid' && (req.body.amountPaid === undefined || Number(req.body.amountPaid) === 0) && updatedAmountPaid === 0) {
-      updatedAmountPaid = (Number(updatedPrevBal) || 0) + (Number(updatedAmount) || 0);
+    // Kapag binuo/binago ang bayad sa edit modal, awtomatikong kukunin ang bagong Prev Balance
+    const calculatedTotalDue = (updatedPrevBal + updatedAmount) - updatedAmountPaid;
+    if (updatedStatus === 'paid') {
+      updatedPrevBal = 0;
+    } else if (calculatedTotalDue > 0) {
+      updatedPrevBal = Math.max(0, calculatedTotalDue - updatedAmount);
     }
+
+    let updatedPrevMonths = updatedAmount > 0 ? (updatedPrevBal / updatedAmount) : 0;
 
     const updatedData = {
       id: newId,
@@ -1353,7 +1372,7 @@ app.put('/api/invoices/:id', async (req, res) => {
       dueDate: req.body.dueDate !== undefined ? req.body.dueDate : existingItem.dueDate,
       amount: updatedAmount,
       previousBalance: updatedPrevBal,
-      previousBalanceMonths: req.body.previousBalanceMonths !== undefined ? parseInt(req.body.previousBalanceMonths, 10) : existingItem.previousBalanceMonths,
+      previousBalanceMonths: Math.round(updatedPrevMonths * 10) / 10,
       amountPaid: updatedAmountPaid,
       status: updatedStatus
     };
