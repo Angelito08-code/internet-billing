@@ -1228,42 +1228,52 @@ app.post('/api/invoices', async (req, res) => {
 });
 
 // ================= PAYMENT LOGIC =================
+// ================= FIXED PAYMENT LOGIC =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const db = await getDB();
     const item = db.find(inv => String(inv.id) === String(req.params.id));
     if (!item) return res.status(404).json({ error: "Customer not found" });
 
+    // 1. Kunan ang ibinayad ngayong transaction
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
     const paidMonth = req.body.paidMonth || ''; 
-    const monthlyRate = Number(item.amount) || 800;
+    const monthlyRate = Number(item.amount) || 0;
     const oldPrevBal = Number(item.previousBalance) || 0;
+
+    // Total Due bago magbayad (Previous Balance + Monthly Amount)
     const totalDue = oldPrevBal + monthlyRate;
 
+    // Bagong kabuuang naisumiteng bayad
     const existingPaid = Number(item.amountPaid) || 0;
     const totalAmountPaid = existingPaid + paymentInput;
 
+    // 2. Ibawas ang ibinayad sa Total Due
     const remainingBalance = Math.max(0, totalDue - totalAmountPaid);
+    
+    // Status update: Paid kapag 0 na ang remaining balance, Unpaid kapag may natira
     const newStatus = remainingBalance <= 0 ? "paid" : "unpaid";
     
+    // 3. I-update ang Previous Balance batay sa natirang utang/balance
     let newPrevBalance = remainingBalance;
-    let newPrevMonths = monthlyRate > 0 ? Number((newPrevBalance / monthlyRate).toFixed(1)) : 0;
+    
+    // Kalkulahin ang ilang buwan na lang ang katumbas ng natirang Previous Balance
+    let newPrevMonths = monthlyRate > 0 ? (newPrevBalance / monthlyRate) : 0;
 
     let currentDueDate = parseLocalDate(item.dueDate);
     if (newStatus === "paid") {
       newPrevBalance = 0;
       newPrevMonths = 0;
-      // Hininto na ang pag-a-advance ng due date sa susunod na buwan kapag nagbayad
-      // currentDueDate.setMonth(currentDueDate.getMonth() + 1); 
     }
 
     const newDueDateFormatted = formatLocalDate(currentDueDate);
 
+    // 4. I-save sa Supabase Database
     const { data, error } = await supabase.from('invoices').update({
       status: newStatus,
       amountPaid: totalAmountPaid,
       previousBalance: newPrevBalance,
-      previousBalanceMonths: Math.round(newPrevMonths),
+      previousBalanceMonths: Math.round(newPrevMonths * 10) / 10, // Round off sa decimal
       dueDate: newDueDateFormatted
     }).eq('id', req.params.id).select();
 
@@ -1274,7 +1284,6 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     res.status(500).json({ error: "Cannot update status: " + err.message });
   }
 });
-
 app.put('/api/invoices/:id', async (req, res) => {
   try {
     const oldId = req.params.id;
