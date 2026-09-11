@@ -324,7 +324,7 @@ app.get('/customer', (req, res) => {
               const prevMos = data.previousBalanceMonths || 0;
               document.getElementById('resPrevBalance').textContent = '₱' + (Number(data.previousBalance) || 0).toFixed(2) + ' (' + prevMos + ' month(s))';
               
-              const totalDue = (data.status === 'disconnected' || data.status === 'free' || data.status === 'pullout') ? 0 : ((Number(data.previousBalance) || 0) + (Number(data.amount) || 0));
+              const totalDue = (data.status === 'disconnected' || data.status === 'free' || data.status === 'pullout') ? 0 : Math.max(0, ((Number(data.previousBalance) || 0) + (Number(data.amount) || 0)) - (Number(data.amountPaid) || 0));
               document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
               
               const statusEl = document.getElementById('resStatus');
@@ -798,16 +798,21 @@ app.get('/dashboard', (req, res) => {
 
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
+              var paidVal = Number(item.amountPaid) || 0;
               
-              var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout') ? 0 : (prevBal + amount);
+              var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout') ? 0 : Math.max(0, (prevBal + amount) - paidVal);
               
               var prevMos = item.previousBalanceMonths || 0;
               var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
 
               var safeId = String(item.id !== undefined ? item.id : '').replace(/'/g, "\\\\'");
+              
+              // ACTION BUTTONS WITH UNDO FEATURE
               var actionButtons = '';
               if (itemStatus !== 'paid') {
                 actionButtons += '<button onclick="markPaid(\\'' + safeId + '\\')" class="bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-green-700 mr-1.5 shadow-sm">Paid</button>';
+              } else {
+                actionButtons += '<button onclick="undoPaid(\\'' + safeId + '\\')" class="bg-orange-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-orange-600 mr-1.5 shadow-sm">Undo</button>';
               }
               actionButtons += '<button onclick="openEditModal(\\'' + safeId + '\\')" class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-700 mr-1.5 shadow-sm">Edit</button>';
               actionButtons += '<button onclick="deleteCustomer(\\'' + safeId + '\\')" class="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 shadow-sm">Delete</button>';
@@ -849,43 +854,62 @@ app.get('/dashboard', (req, res) => {
         }
 
         async function markPaid(id) {
-  var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
-  if (!item) return;
+          var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
+          if (!item) return;
 
-  var defaultTotalDue = Math.max(0, ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0)) - (Number(item.amountPaid) || 0));
-  
-  // 1. Tanungin ang buwan na binabayaran
-  var paidMonth = prompt("Ilagay ang buwan na binabayaran (Halimbawa: September 2026):", "");
-  if (paidMonth === null) return; // Kinansela ng user
+          var defaultTotalDue = Math.max(0, ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0)) - (Number(item.amountPaid) || 0));
+          
+          var paidMonth = prompt("Ilagay ang buwan na binabayaran (Halimbawa: September 2026):", "");
+          if (paidMonth === null) return;
 
-  // 2. Tanungin ang amount na binayad
-  var inputVal = prompt("Enter amount paid by " + (item.name || 'Customer') + " para sa buwan ng " + paidMonth + " (₱):", defaultTotalDue);
-  if (inputVal === null) return;
+          var inputVal = prompt("Enter amount paid by " + (item.name || 'Customer') + " para sa buwan ng " + paidMonth + " (₱):", defaultTotalDue);
+          if (inputVal === null) return;
 
-  var amountPaid = parseFloat(inputVal);
-  if (isNaN(amountPaid) || amountPaid < 0) {
-    alert("⚠️ Please enter a valid payment amount.");
-    return;
-  }
+          var amountPaid = parseFloat(inputVal);
+          if (isNaN(amountPaid) || amountPaid < 0) {
+            alert("⚠️ Please enter a valid payment amount.");
+            return;
+          }
 
-  try {
-    var res = await fetch('/api/invoices/' + id + '/pay', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        amountPaid: amountPaid, 
-        paidMonth: paidMonth 
-      })
-    });
+          try {
+            var res = await fetch('/api/invoices/' + id + '/pay', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                amountPaid: amountPaid, 
+                paidMonth: paidMonth 
+              })
+            });
 
-    if (!res.ok) throw new Error('Failed to update payment.');
+            if (!res.ok) throw new Error('Failed to update payment.');
 
-    loadData();
-    alert('✅ Matagumpay na naitala ang bayad para sa buwan ng ' + paidMonth + '!');
-  } catch (err) {
-    alert('❌ Cannot update payment status.');
-  }
-}
+            loadData();
+            alert('✅ Matagumpay na naitala ang bayad para sa buwan ng ' + paidMonth + '!');
+          } catch (err) {
+            alert('❌ Cannot update payment status.');
+          }
+        }
+
+        async function undoPaid(id) {
+          var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
+          if (!item) return;
+
+          if (confirm("Sigurado ka bang gusto mong I-UNDO ang bayad ni " + (item.name || 'Customer') + "? Iba-bawas ang nailagay na bayad at ibabalik sa UNPAID.")) {
+            try {
+              var res = await fetch('/api/invoices/' + id + '/undo-pay', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' }
+              });
+
+              if (!res.ok) throw new Error('Failed to undo payment.');
+
+              loadData();
+              alert('🔄 Na-undo na ang bayad para kay ' + item.name + '!');
+            } catch (err) {
+              alert('❌ Hindi ma-undo ang payment.');
+            }
+          }
+        }
 
         async function addSubscriber() {
           try {
@@ -1228,36 +1252,25 @@ app.post('/api/invoices', async (req, res) => {
 });
 
 // ================= PAYMENT LOGIC =================
-// ================= FIXED PAYMENT LOGIC =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const db = await getDB();
     const item = db.find(inv => String(inv.id) === String(req.params.id));
     if (!item) return res.status(404).json({ error: "Customer not found" });
 
-    // 1. Kunan ang ibinayad ngayong transaction
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
     const paidMonth = req.body.paidMonth || ''; 
-    const monthlyRate = Number(item.amount) || 0;
+    const monthlyRate = Number(item.amount) || 800;
     const oldPrevBal = Number(item.previousBalance) || 0;
-
-    // Total Due bago magbayad (Previous Balance + Monthly Amount)
     const totalDue = oldPrevBal + monthlyRate;
 
-    // Bagong kabuuang naisumiteng bayad
     const existingPaid = Number(item.amountPaid) || 0;
     const totalAmountPaid = existingPaid + paymentInput;
 
-    // 2. Ibawas ang ibinayad sa Total Due
     const remainingBalance = Math.max(0, totalDue - totalAmountPaid);
-    
-    // Status update: Paid kapag 0 na ang remaining balance, Unpaid kapag may natira
     const newStatus = remainingBalance <= 0 ? "paid" : "unpaid";
     
-    // 3. I-update ang Previous Balance batay sa natirang utang/balance
     let newPrevBalance = remainingBalance;
-    
-    // Kalkulahin ang ilang buwan na lang ang katumbas ng natirang Previous Balance
     let newPrevMonths = monthlyRate > 0 ? (newPrevBalance / monthlyRate) : 0;
 
     let currentDueDate = parseLocalDate(item.dueDate);
@@ -1268,12 +1281,11 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
 
     const newDueDateFormatted = formatLocalDate(currentDueDate);
 
-    // 4. I-save sa Supabase Database
     const { data, error } = await supabase.from('invoices').update({
       status: newStatus,
       amountPaid: totalAmountPaid,
       previousBalance: newPrevBalance,
-      previousBalanceMonths: Math.round(newPrevMonths * 10) / 10, // Round off sa decimal
+      previousBalanceMonths: Math.round(newPrevMonths * 10) / 10,
       dueDate: newDueDateFormatted
     }).eq('id', req.params.id).select();
 
@@ -1284,6 +1296,27 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     res.status(500).json({ error: "Cannot update status: " + err.message });
   }
 });
+
+// ================= UNDO PAYMENT LOGIC =================
+app.put('/api/invoices/:id/undo-pay', async (req, res) => {
+  try {
+    const db = await getDB();
+    const item = db.find(inv => String(inv.id) === String(req.params.id));
+    if (!item) return res.status(404).json({ error: "Customer not found" });
+
+    const { data, error } = await supabase.from('invoices').update({
+      status: 'unpaid',
+      amountPaid: 0.00
+    }).eq('id', req.params.id).select();
+
+    if (error) throw error;
+    res.json(data[0] || { success: true });
+  } catch (err) {
+    console.error("Undo Payment Error:", err);
+    res.status(500).json({ error: "Cannot undo payment: " + err.message });
+  }
+});
+
 app.put('/api/invoices/:id', async (req, res) => {
   try {
     const oldId = req.params.id;
@@ -1411,7 +1444,7 @@ app.get('/api/export-excel', async (req, res) => {
     filteredData.forEach((item, index) => {
       const itemStatus = (item.status || '').toLowerCase();
       const isExempt = itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout';
-      const totalDue = isExempt ? 0 : ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0));
+      const totalDue = isExempt ? 0 : Math.max(0, ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0)) - (Number(item.amountPaid) || 0));
       
       let actualPaid = Number(item.amountPaid) || 0;
       if (itemStatus === 'paid' && actualPaid === 0) {
@@ -1420,7 +1453,7 @@ app.get('/api/export-excel', async (req, res) => {
       totalCollected += actualPaid;
 
       if (itemStatus === 'unpaid' || itemStatus === 'reconnected') {
-        totalReceivables += Math.max(0, totalDue - actualPaid);
+        totalReceivables += totalDue;
       }
 
       const row = sheet.addRow([
