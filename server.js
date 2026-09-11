@@ -61,7 +61,6 @@ const getDB = async () => {
       return String(idA).localeCompare(String(idB), undefined, { numeric: true, sensitivity: 'base' });
     });
     
-    let updated = false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayTotalMonths = today.getFullYear() * 12 + today.getMonth();
@@ -79,50 +78,48 @@ const getDB = async () => {
       let updatedThisItem = false;
       let newStatus = item.status;
       let newPrevBalance = Number(item.previousBalance) || 0;
-      let newPrevMonths = Number(item.previousBalanceMonths) || 0;
       let newAmountPaid = Number(item.amountPaid) || 0;
+      const monthlyRate = Number(item.amount) || 800;
 
-      // Mag-a-update at magre-rollover lamang kung ang kasalukuyang buwan ay lumampas na sa buwan ng due date
+      // Kapag pumasok na sa bagong buwan (lagpas na sa due date month):
       if (todayTotalMonths > dueTotalMonths) {
         if (newStatus === 'paid') {
+          // Kapag fully paid sa nakaraang buwan: walang previous balance
           newPrevBalance = 0;
-          newPrevMonths = 0;
           newAmountPaid = 0;
           newStatus = 'unpaid';
         } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
-          const totalDueBeforeRollover = newPrevBalance + (Number(item.amount) || 0);
+          // Kapag MAY UNPAID BALANCE: Idinadagdag ang natitirang utang sa Previous Balance
+          const totalDueBeforeRollover = newPrevBalance + monthlyRate;
           const remainingUnpaid = Math.max(0, totalDueBeforeRollover - newAmountPaid);
           
-          newPrevBalance = remainingUnpaid;
-          newAmountPaid = 0;
+          newPrevBalance = remainingUnpaid; // Dito na-a-accumulate ang nakaraang utang
+          newAmountPaid = 0; // Reset ang naibayad para sa bagong buwan
           newStatus = 'unpaid';
         }
+
+        let newPrevMonths = monthlyRate > 0 ? Number((newPrevBalance / monthlyRate).toFixed(1)) : 0;
 
         due.setFullYear(today.getFullYear());
         due.setMonth(today.getMonth());
         const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
         due.setDate(Math.min(billingDay, lastDayOfNewMonth));
 
-        updatedThisItem = true;
-      }
-
-      if (updatedThisItem && item.status !== 'free') {
         const newDueDate = formatLocalDate(due);
 
         await supabase.from('invoices').update({
           status: newStatus,
           previousBalance: newPrevBalance,
-          previousBalanceMonths: newPrevMonths,
+          previousBalanceMonths: Math.round(newPrevMonths),
           amountPaid: newAmountPaid,
           dueDate: newDueDate
         }).eq('id', item.id);
 
         item.status = newStatus;
         item.previousBalance = newPrevBalance;
-        item.previousBalanceMonths = newPrevMonths;
+        item.previousBalanceMonths = Math.round(newPrevMonths);
         item.amountPaid = newAmountPaid;
         item.dueDate = newDueDate;
-        updated = true;
       }
     }
     return db;
@@ -811,7 +808,7 @@ app.get('/dashboard', (req, res) => {
               var prevBal = Number(item.previousBalance) || 0;
               var amountPaid = Number(item.amountPaid) || 0;
               
-              // NAIBABAWAS NA DITO ANG AMOUNT PAID SA TOTAL DUE
+              // TOTAL DUE = (Monthly + Previous Balance) - Amount Paid
               var rawTotalDue = (prevBal + amount);
               var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout') 
                 ? 0 
@@ -1242,7 +1239,7 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// ================= PAYMENT LOGIC (NAIBABAWAS ANG AMOUNT PAID) =================
+// ================= PAYMENT LOGIC (NAIBABAWAS ANG AMOUNT PAID AT NADADAGDAG ANG UNPAID BAL) =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const db = await getDB();
@@ -1254,17 +1251,18 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const monthlyRate = Number(item.amount) || 800;
     const oldPrevBal = Number(item.previousBalance) || 0;
     
-    // Kabuuang utang bago magbayad
+    // Total na utang (Previous Balance + Monthly Rate)
     const totalDue = oldPrevBal + monthlyRate;
 
-    // Idagdag ang bagong ibinayad sa nakaraang naitagong amountPaid
+    // Isama ang bagong ibinayad sa dating naibayad na
     const existingPaid = Number(item.amountPaid) || 0;
     const totalAmountPaid = existingPaid + paymentInput;
 
-    // Kuhanin ang natitirang balanse (Ibawas ang amountPaid sa Total Due)
+    // Natitirang hindi nabayarang utang
     const remainingBalance = Math.max(0, totalDue - totalAmountPaid);
     const newStatus = remainingBalance <= 0 ? "paid" : "unpaid";
     
+    // Kapag may natirang balanse, ito ang magiging bagong Previous Balance
     let newPrevBalance = remainingBalance;
     let newPrevMonths = monthlyRate > 0 ? Number((newPrevBalance / monthlyRate).toFixed(1)) : 0;
 
