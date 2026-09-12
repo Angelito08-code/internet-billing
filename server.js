@@ -1259,19 +1259,17 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// ================= PAYMENT LOGIC (FLEXIBLE AMOUNT PAYMENT) =================
+// TIYAKIN NA MAY "async" DITO SA HARAP NG (req, res)
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const targetId = String(req.params.id).trim();
     const db = await getDB();
     
-    // Hanapin ang customer record
     const item = db.find(inv => String(inv.id).trim() === targetId);
     if (!item) {
       return res.status(404).json({ error: "Customer not found" });
     }
 
-    // 1. Kunan ang ibinayad na halaga (tumatanggap kahit magkano)
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
     if (isNaN(paymentInput) || paymentInput < 0) {
       return res.status(400).json({ error: "Please enter a valid payment amount." });
@@ -1281,21 +1279,15 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const oldPrevBal = parseFloat(item.previousBalance) || 0;
     const existingPaid = parseFloat(item.amountPaid) || 0;
 
-    // 2. Ipunin ang kabuuang ibinayad ng customer para sa billing cycle
     const totalAmountPaid = existingPaid + paymentInput;
 
-    // 3. KWENTAHAN NG PREVIOUS BALANCE AT PREVIOUS MONTHS
-    // Unang kinakain ng bayad ang Previous Balance
+    // Direct deduction sa Previous Balance at Prev. Mos
     const newPrevBalance = Math.max(0, oldPrevBal - paymentInput);
-    
-    // I-recalculate ang Prev Mos base sa natitirang Prev Balance
     const newPrevMonths = monthlyRate > 0 ? parseFloat((newPrevBalance / monthlyRate).toFixed(1)) : 0;
 
-    // 4. KWENTAHAN NG STATUS AT TOTAL DUE
     const totalDueBeforePayment = oldPrevBal + monthlyRate;
     const remainingTotalDue = Math.max(0, totalDueBeforePayment - totalAmountPaid);
     
-    // Kapag nabayaran nang buo ang Total Due (o higit pa), gagawing "paid", kung may natitira pa ay "unpaid"
     const newStatus = remainingTotalDue <= 0 ? "paid" : "unpaid";
 
     let formattedDueDate = item.dueDate;
@@ -1304,7 +1296,6 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       formattedDueDate = formatLocalDate(currentDueDate);
     }
 
-    // 5. Save updates sa Supabase Database
     const updatePayload = {
       status: newStatus,
       amountPaid: totalAmountPaid,
@@ -1313,6 +1304,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       dueDate: formattedDueDate
     };
 
+    // LINE 1335: Gagana na ang await dito dahil may 'async' na ang function sa taas
     const { data, error } = await supabase
       .from('invoices')
       .update(updatePayload)
