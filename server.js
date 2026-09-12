@@ -1259,7 +1259,7 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// ================= PAYMENT LOGIC (DIRECT DEDUCTION & FIX ERROR) =================
+// ================= PAYMENT LOGIC (FLEXIBLE AMOUNT PAYMENT) =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const targetId = String(req.params.id).trim();
@@ -1271,28 +1271,31 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       return res.status(404).json({ error: "Customer not found" });
     }
 
-    // 1. Kunan ang ibinayad sa transaction na ito
+    // 1. Kunan ang ibinayad na halaga (tumatanggap kahit magkano)
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
+    if (isNaN(paymentInput) || paymentInput < 0) {
+      return res.status(400).json({ error: "Please enter a valid payment amount." });
+    }
+
     const monthlyRate = parseFloat(item.amount) || 800;
     const oldPrevBal = parseFloat(item.previousBalance) || 0;
     const existingPaid = parseFloat(item.amountPaid) || 0;
 
-    // 2. Ipunin ang kabuuang bayad
+    // 2. Ipunin ang kabuuang ibinayad ng customer para sa billing cycle
     const totalAmountPaid = existingPaid + paymentInput;
 
-    // 3. Kabuuang utang bago magbayad (Prev Bal + Monthly)
-    const totalDueBeforePayment = oldPrevBal + monthlyRate;
-
-    // 4. DIREKTANG IBABAWAS ANG BAYAD SA PREVIOUS BALANCE AT TOTAL DUE
+    // 3. KWENTAHAN NG PREVIOUS BALANCE AT PREVIOUS MONTHS
+    // Unang kinakain ng bayad ang Previous Balance
     const newPrevBalance = Math.max(0, oldPrevBal - paymentInput);
     
-    // Recalculate Prev. Mos (Naka-round off sa 1 decimal place)
+    // I-recalculate ang Prev Mos base sa natitirang Prev Balance
     const newPrevMonths = monthlyRate > 0 ? parseFloat((newPrevBalance / monthlyRate).toFixed(1)) : 0;
 
-    // Kwentahin ang natitirang Total Due
+    // 4. KWENTAHAN NG STATUS AT TOTAL DUE
+    const totalDueBeforePayment = oldPrevBal + monthlyRate;
     const remainingTotalDue = Math.max(0, totalDueBeforePayment - totalAmountPaid);
     
-    // Status update: "paid" kapag wala nang natitirang Total Due, else "unpaid"
+    // Kapag nabayaran nang buo ang Total Due (o higit pa), gagawing "paid", kung may natitira pa ay "unpaid"
     const newStatus = remainingTotalDue <= 0 ? "paid" : "unpaid";
 
     let formattedDueDate = item.dueDate;
@@ -1301,7 +1304,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       formattedDueDate = formatLocalDate(currentDueDate);
     }
 
-    // 5. Build Safe Supabase Update Payload
+    // 5. Save updates sa Supabase Database
     const updatePayload = {
       status: newStatus,
       amountPaid: totalAmountPaid,
@@ -1309,6 +1312,24 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       previousBalanceMonths: newPrevMonths,
       dueDate: formattedDueDate
     };
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .update(updatePayload)
+      .eq('id', targetId)
+      .select();
+
+    if (error) {
+      console.error("Supabase Database Update Error:", error);
+      return res.status(500).json({ error: "Database error: " + error.message });
+    }
+
+    res.json(data[0] || { success: true });
+  } catch (err) {
+    console.error("Payment Update Server Error:", err);
+    res.status(500).json({ error: "Server error: " + err.message });
+  }
+});
 
     // I-update sa Supabase
     const { data, error } = await supabase
