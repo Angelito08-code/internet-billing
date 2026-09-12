@@ -1259,39 +1259,42 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// ================= PAYMENT LOGIC (AUTOMATIC PREV BAL & TOTAL DUE) =================
+// ================= PAYMENT LOGIC (DIRECT DEDUCTION) =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const db = await getDB();
     const item = db.find(inv => String(inv.id) === String(req.params.id));
     if (!item) return res.status(404).json({ error: "Customer not found" });
 
-    // 1. Kunan ang ibinayad sa transaction na ito
+    // 1. Kunan ang halagang ibinayad sa transaction na ito
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
     const monthlyRate = Number(item.amount) || 800;
     const oldPrevBal = Number(item.previousBalance) || 0;
-
-    // Total Due bago ang bagong bayad = Previous Balance + Monthly Rate
-    const totalDueBeforePayment = oldPrevBal + monthlyRate;
-
-    // Bagong Kabuuang Naisumiteng Bayad
     const existingPaid = Number(item.amountPaid) || 0;
+
+    // 2. Ipunin ang kabuuang naisumiteng bayad
     const totalAmountPaid = existingPaid + paymentInput;
 
-    // 2. Ibawas ang ibinayad sa Total Due
-    const remainingBalance = Math.max(0, totalDueBeforePayment - totalAmountPaid);
+    // 3. Kabuuang utang bago magbayad
+    const totalDueBeforePayment = oldPrevBal + monthlyRate;
+
+    // 4. DIREKTANG IBABAWAS ANG BAYAD SA PREVIOUS BALANCE AT TOTAL DUE
+    // Unang babawasan ang Previous Balance
+    const newPrevBalance = Math.max(0, oldPrevBal - paymentInput);
     
-    // Status update: Paid kapag 0 na ang naiwang balanse, Unpaid kapag may natitira pa
-    const newStatus = remainingBalance <= 0 ? "paid" : "unpaid";
-    
-    // 3. I-update ang Previous Balance (Unang ibinabawas ang bayad sa lumang balanse)
-    const newPrevBalance = Math.max(0, oldPrevBal - totalAmountPaid);
+    // I-recalculate ang Prev. Mos base sa bagong nabawasang Prev. Balance
     const newPrevMonths = monthlyRate > 0 ? Math.round((newPrevBalance / monthlyRate) * 10) / 10 : 0;
+
+    // Kwentahin ang natitirang Total Due matapos ibawas ang bayad
+    const remainingTotalDue = Math.max(0, totalDueBeforePayment - totalAmountPaid);
+    
+    // Status update: "paid" lang kapag 0 na ang natitirang Total Due
+    const newStatus = remainingTotalDue <= 0 ? "paid" : "unpaid";
 
     const currentDueDate = parseLocalDate(item.dueDate);
     const newDueDateFormatted = formatLocalDate(currentDueDate);
 
-    // 4. Save updates to Supabase
+    // 5. I-save sa Supabase Database
     const { data, error } = await supabase.from('invoices').update({
       status: newStatus,
       amountPaid: totalAmountPaid,
