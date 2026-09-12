@@ -1259,7 +1259,7 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// ================= PAYMENT LOGIC (AUTOMATIC PREV BAL & TOTAL DUE) =================
+/// ================= PAYMENT LOGIC (SINGLE DEDUCTION ONLY) =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const targetId = String(req.params.id).trim();
@@ -1270,6 +1270,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       return res.status(404).json({ error: "Customer not found" });
     }
 
+    // 1. Kunan ang eksaktong halaga ng bagong bayad (e.g. 1000)
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
     if (isNaN(paymentInput) || paymentInput < 0) {
       return res.status(400).json({ error: "Please enter a valid payment amount." });
@@ -1279,14 +1280,21 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const oldPrevBal = parseFloat(item.previousBalance) || 0;
     const existingPaid = parseFloat(item.amountPaid) || 0;
 
-    const totalAmountPaid = existingPaid + paymentInput;
+    // 2. Ipunin ang Kabuuang Naisumiteng Bayad
+    const newTotalPaid = existingPaid + paymentInput;
 
+    // 3. ISANG BESES LANG IBABAWAS ANG BAGONG BAYAD (paymentInput)
+    // Ibawas sa Previous Balance
     const newPrevBalance = Math.max(0, oldPrevBal - paymentInput);
+    
+    // Kwentahin ang bagong Prev. Mos base sa natirang Prev. Balance
     const newPrevMonths = monthlyRate > 0 ? parseFloat((newPrevBalance / monthlyRate).toFixed(1)) : 0;
 
-    const totalDueBeforePayment = oldPrevBal + monthlyRate;
-    const remainingTotalDue = Math.max(0, totalDueBeforePayment - totalAmountPaid);
-    
+    // 4. KWENTAHAN NG TOTAL DUE (Base sa bagong Prev Balance + Monthly)
+    // Walang dobleng bawas: Ang Total Due ay ang panibagong Prev. Balance + Kasalukuyang Buwan
+    const remainingTotalDue = newPrevBalance + monthlyRate;
+
+    // Status check
     const newStatus = remainingTotalDue <= 0 ? "paid" : "unpaid";
 
     let formattedDueDate = item.dueDate;
@@ -1297,7 +1305,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
 
     const updatePayload = {
       status: newStatus,
-      amountPaid: totalAmountPaid,
+      amountPaid: newTotalPaid,
       previousBalance: newPrevBalance,
       previousBalanceMonths: newPrevMonths,
       dueDate: formattedDueDate
@@ -1320,7 +1328,6 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     res.status(500).json({ error: "Server error: " + err.message });
   }
 });
-
 // ================= UNDO PAYMENT LOGIC =================
 app.put('/api/invoices/:id/undo-pay', async (req, res) => {
   try {
