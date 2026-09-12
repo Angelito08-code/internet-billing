@@ -1284,11 +1284,9 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     // Status update: Paid kapag 0 na ang naiwang balanse, Unpaid kapag may natitira pa
     const newStatus = remainingBalance <= 0 ? "paid" : "unpaid";
     
-    // 3. I-update ang Previous Balance batay sa natirang utang
-    let newPrevBalance = oldPrevBal;
-    if (newStatus === "paid") {
-      newPrevBalance = 0;
-    }
+    // 3. I-update ang Previous Balance (Unang ibinabawas ang bayad sa lumang balanse)
+    const newPrevBalance = Math.max(0, oldPrevBal - totalAmountPaid);
+    const newPrevMonths = monthlyRate > 0 ? Math.round((newPrevBalance / monthlyRate) * 10) / 10 : 0;
 
     const currentDueDate = parseLocalDate(item.dueDate);
     const newDueDateFormatted = formatLocalDate(currentDueDate);
@@ -1298,7 +1296,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       status: newStatus,
       amountPaid: totalAmountPaid,
       previousBalance: newPrevBalance,
-      previousBalanceMonths: monthlyRate > 0 ? Math.round((newPrevBalance / monthlyRate) * 10) / 10 : 0,
+      previousBalanceMonths: newPrevMonths,
       dueDate: newDueDateFormatted
     }).eq('id', req.params.id).select();
 
