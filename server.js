@@ -1259,7 +1259,7 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// TIYAKIN NA MAY "async" DITO SA HARAP NG (req, res)
+// ================= PAYMENT LOGIC (WITH ASYNC FIX) =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const targetId = String(req.params.id).trim();
@@ -1281,7 +1281,6 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
 
     const totalAmountPaid = existingPaid + paymentInput;
 
-    // Direct deduction sa Previous Balance at Prev. Mos
     const newPrevBalance = Math.max(0, oldPrevBal - paymentInput);
     const newPrevMonths = monthlyRate > 0 ? parseFloat((newPrevBalance / monthlyRate).toFixed(1)) : 0;
 
@@ -1304,7 +1303,6 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       dueDate: formattedDueDate
     };
 
-    // LINE 1335: Gagana na ang await dito dahil may 'async' na ang function sa taas
     const { data, error } = await supabase
       .from('invoices')
       .update(updatePayload)
@@ -1320,6 +1318,86 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
   } catch (err) {
     console.error("Payment Update Server Error:", err);
     res.status(500).json({ error: "Server error: " + err.message });
+  }
+});
+
+// ================= EDIT CUSTOMER LOGIC (WITH ASYNC FIX) =================
+app.put('/api/invoices/:id', async (req, res) => {
+  try {
+    const oldId = req.params.id;
+    const newId = req.body.id !== undefined ? String(req.body.id).trim() : oldId;
+
+    const db = await getDB();
+
+    if (newId !== oldId) {
+      if (db.some(inv => String(inv.id).toLowerCase() === newId.toLowerCase())) {
+        return res.status(400).json({ error: "Customer ID " + newId + " already exists." });
+      }
+    }
+
+    const existingItem = db.find(inv => String(inv.id) === String(oldId));
+    if (!existingItem) {
+      return res.status(404).json({ error: "Customer record not found." });
+    }
+
+    const updatedAmount = req.body.amount !== undefined ? parseFloat(req.body.amount) : existingItem.amount;
+    let updatedPrevBal = req.body.previousBalance !== undefined ? parseFloat(req.body.previousBalance) : existingItem.previousBalance;
+    let updatedAmountPaid = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : (existingItem.amountPaid || 0);
+    let updatedStatus = req.body.status !== undefined ? req.body.status : existingItem.status;
+
+    const calculatedTotalDue = (updatedPrevBal + updatedAmount) - updatedAmountPaid;
+    if (updatedStatus === 'paid') {
+      updatedPrevBal = 0;
+    } else if (calculatedTotalDue > 0) {
+      updatedPrevBal = Math.max(0, calculatedTotalDue - updatedAmount);
+    }
+
+    let updatedPrevMonths = updatedAmount > 0 ? (updatedPrevBal / updatedAmount) : 0;
+
+    const updatedData = {
+      id: newId,
+      name: req.body.name !== undefined ? req.body.name : existingItem.name,
+      address: req.body.address !== undefined ? req.body.address : existingItem.address,
+      plan: req.body.plan !== undefined ? req.body.plan : existingItem.plan,
+      collector: req.body.collector !== undefined ? req.body.collector : existingItem.collector,
+      dueDate: req.body.dueDate !== undefined ? req.body.dueDate : existingItem.dueDate,
+      amount: updatedAmount,
+      previousBalance: updatedPrevBal,
+      previousBalanceMonths: Math.round(updatedPrevMonths * 10) / 10,
+      amountPaid: updatedAmountPaid,
+      status: updatedStatus
+    };
+
+    if (newId !== oldId) {
+      const { error: deleteError } = await supabase.from('invoices').delete().eq('id', oldId);
+      if (deleteError) throw deleteError;
+
+      const { data: insertData, error: insertError } = await supabase.from('invoices').insert([updatedData]).select();
+      if (insertError) throw insertError;
+
+      return res.json(insertData[0] || updatedData);
+    } else {
+      const updatePayload = {
+        name: updatedData.name,
+        address: updatedData.address,
+        plan: updatedData.plan,
+        collector: updatedData.collector,
+        dueDate: updatedData.dueDate,
+        amount: updatedData.amount,
+        previousBalance: updatedData.previousBalance,
+        previousBalanceMonths: updatedData.previousBalanceMonths,
+        amountPaid: updatedData.amountPaid,
+        status: updatedData.status
+      };
+
+      const { data, error } = await supabase.from('invoices').update(updatePayload).eq('id', oldId).select();
+      if (error) throw error;
+
+      res.json(data[0] || { success: true });
+    }
+  } catch (err) {
+    console.error("Error updating customer:", err);
+    res.status(500).json({ error: "Changes were not saved: " + err.message });
   }
 });
 
