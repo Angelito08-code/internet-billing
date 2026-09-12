@@ -1268,7 +1268,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
 
     // 1. Kunan ang halagang ibinayad sa transaction na ito
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
-    const monthlyRate = Number(item.amount) || 800;
+    const monthlyRate = Number(item.amount) || 0;
     const oldPrevBal = Number(item.previousBalance) || 0;
     const existingPaid = Number(item.amountPaid) || 0;
 
