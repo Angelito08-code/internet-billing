@@ -83,33 +83,31 @@ const getDB = async () => {
       let newAmountPaid = Number(item.amountPaid) || 0;
       const monthlyAmount = Number(item.amount) || 0;
 
-      // Mag-a-update at magre-rollover lamang kung ang kasalukuyang buwan ay lumampas na sa buwan ng due date
       let tempDueMonths = dueTotalMonths;
 
-while (todayTotalMonths > tempDueMonths) {
-  if (newStatus === 'paid') {
-    newPrevBalance = 0;
-    newPrevMonths = 0;
-    newAmountPaid = 0;
-    newStatus = 'unpaid';
-  } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
-    const totalUnpaidBeforeRollover = (newPrevBalance + monthlyAmount) - newAmountPaid;
-    newPrevBalance = Math.max(0, totalUnpaidBeforeRollover);
-    newPrevMonths = monthlyAmount > 0 ? Math.round((newPrevBalance / monthlyAmount) * 10) / 10 : 0;
-    newAmountPaid = 0;
-    newStatus = 'unpaid';
-  }
+      while (todayTotalMonths > tempDueMonths) {
+        if (newStatus === 'paid') {
+          newPrevBalance = 0;
+          newPrevMonths = 0;
+          newAmountPaid = 0;
+          newStatus = 'unpaid';
+        } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
+          const totalUnpaidBeforeRollover = (newPrevBalance + monthlyAmount) - newAmountPaid;
+          newPrevBalance = Math.max(0, totalUnpaidBeforeRollover);
+          newPrevMonths = monthlyAmount > 0 ? Math.round((newPrevBalance / monthlyAmount) * 10) / 10 : 0;
+          newAmountPaid = 0;
+          newStatus = 'unpaid';
+        }
 
-  // I-increment ang buwan nang paisa-isa hanggang maabot ang kasalukuyang buwan
-  due.setMonth(due.getMonth() + 1);
-  tempDueMonths = due.getFullYear() * 12 + due.getMonth();
-  updatedThisItem = true;
-}
+        due.setMonth(due.getMonth() + 1);
+        tempDueMonths = due.getFullYear() * 12 + due.getMonth();
+        updatedThisItem = true;
+      }
 
-if (updatedThisItem) {
-  const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
-  due.setDate(Math.min(billingDay, lastDayOfNewMonth));
-}
+      if (updatedThisItem) {
+        const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
+        due.setDate(Math.min(billingDay, lastDayOfNewMonth));
+      }
 
       if (updatedThisItem && item.status !== 'free') {
         const newDueDate = formatLocalDate(due);
@@ -329,8 +327,7 @@ app.get('/customer', (req, res) => {
               const prevMos = data.previousBalanceMonths || 0;
               document.getElementById('resPrevBalance').textContent = '₱' + (Number(data.previousBalance) || 0).toFixed(2) + ' (' + prevMos + ' month(s))';
               
-              // AUTOMATIC TOTAL DUE: (Previous Balance + Monthly Amount) - Amount Paid
-              const calculatedTotalDue = (Number(data.previousBalance) || 0) + (Number(data.amount) || 0) - (Number(data.amountPaid) || 0);
+              const calculatedTotalDue = (Number(data.previousBalance) || 0) + (Number(data.amount) || 0);
               const totalDue = (data.status === 'disconnected' || data.status === 'free' || data.status === 'pullout') ? 0 : Math.max(0, calculatedTotalDue);
               document.getElementById('resTotalDue').textContent = '₱' + totalDue.toFixed(2);
               
@@ -430,7 +427,6 @@ app.get('/dashboard', (req, res) => {
         
         <div id="summary" class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6"></div>
 
-        <!-- Controls, Search & Add Form -->
         <div class="flex flex-col lg:flex-row justify-between items-center gap-4 mb-6 border-b pb-4">
           <div class="flex flex-wrap items-center gap-2">
             <div class="space-x-1 flex flex-wrap gap-1">
@@ -449,7 +445,6 @@ app.get('/dashboard', (req, res) => {
             </div>
           </div>
 
-          <!-- Add Customer Form -->
           <div class="flex flex-wrap gap-2 items-center bg-gray-50 p-2.5 rounded-lg border border-gray-200">
             <input type="text" id="newId" placeholder="ID (Auto)" class="border px-2.5 py-1.5 rounded text-sm w-24 focus:ring-1 focus:ring-blue-500">
             <input type="text" id="newName" placeholder="Name *" required class="border px-2.5 py-1.5 rounded text-sm w-36 font-medium focus:ring-1 focus:ring-blue-500">
@@ -504,7 +499,6 @@ app.get('/dashboard', (req, res) => {
           </div>
         </div>
 
-        <!-- Data Table -->
         <div class="overflow-x-auto rounded-lg border border-gray-200">
           <table class="w-full text-left border-collapse">
             <thead>
@@ -528,7 +522,6 @@ app.get('/dashboard', (req, res) => {
         </div>
       </div>
 
-      <!-- FLOATING SCROLL BUTTONS -->
       <div class="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
         <button onclick="scrollToTop()" class="bg-blue-600 hover:bg-blue-700 text-white w-11 h-11 rounded-full shadow-xl flex items-center justify-center font-bold text-lg transition transform hover:scale-105" title="Scroll to Top">▲</button>
         <button onclick="scrollToBottom()" class="bg-blue-600 hover:bg-blue-700 text-white w-11 h-11 rounded-full shadow-xl flex items-center justify-center font-bold text-lg transition transform hover:scale-105" title="Scroll to Bottom">▼</button>
@@ -736,8 +729,7 @@ app.get('/dashboard', (req, res) => {
               .filter(function(d) { return d && (d.status === 'unpaid' || d.status === 'reconnected'); })
               .reduce(function(sum, d) { 
                 var totalDue = (Number(d.previousBalance) || 0) + (Number(d.amount) || 0);
-                var paid = Number(d.amountPaid) || 0;
-                return sum + Math.max(0, totalDue - paid); 
+                return sum + Math.max(0, totalDue); 
               }, 0);
 
             document.getElementById('summary').innerHTML = 
@@ -805,10 +797,9 @@ app.get('/dashboard', (req, res) => {
 
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
-              var paidVal = Number(item.amountPaid) || 0;
               
-              // AUTOMATIC TOTAL DUE CALCULATION: (Previous Balance + Monthly Amount) - Amount Paid
-              var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout') ? 0 : Math.max(0, (prevBal + amount) - paidVal);
+              // TOTAL DUE = Prev. Balance + Monthly Rate (Dahil nabawas na ang payment sa Prev. Balance)
+              var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout') ? 0 : Math.max(0, prevBal + amount);
               
               var prevMos = item.previousBalanceMonths || 0;
               var collectorName = item.collector ? item.collector.split(' ')[0] : 'Jefford';
@@ -864,8 +855,7 @@ app.get('/dashboard', (req, res) => {
           var item = allInvoices.find(function(inv) { return inv && inv.id.toString() === id.toString(); });
           if (!item) return;
 
-          // Automatikong Total Due bilang default payment amount
-          var defaultTotalDue = Math.max(0, ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0)) - (Number(item.amountPaid) || 0));
+          var defaultTotalDue = Math.max(0, (Number(item.previousBalance) || 0) + (Number(item.amount) || 0));
           
           var paidMonth = prompt("Ilagay ang buwan na binabayaran (Halimbawa: September 2026):", "");
           if (paidMonth === null) return;
@@ -1259,7 +1249,7 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// ================= PAYMENT LOGIC (EKSAKTONG BAWAS LANG) =================
+// ================= PAYMENT LOGIC (EKSAKTONG SINGLE-DEDUCTION BAWAS) =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const targetId = String(req.params.id).trim();
@@ -1280,22 +1270,23 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const oldPrevBal = parseFloat(item.previousBalance) || 0;
     const existingPaid = parseFloat(item.amountPaid) || 0;
 
-    // 2. Ipunin ang naisumiteng bayad para sa record
+    // 2. Ipunin ang kabuuang naisumiteng bayad
     const newTotalPaid = existingPaid + paymentInput;
 
-    // 3. ISANG BESES LANG IBABAWAS:
-    // Unang ibawas sa Previous Balance (Hindi pwedeng lumagpas sa 0)
+    // 3. SINGLE DEDUCTION LOGIC:
+    // Unang ibawas ang paymentInput sa Prev Balance. Kapag mas malaki ang bayad, nababawasan ang Prev Balance papuntang 0.
     const newPrevBalance = Math.max(0, oldPrevBal - paymentInput);
     
-    // I-recalculate ang Prev. Mos base sa Bagong Prev. Balance
+    // Recalculate Prev. Mos base sa bagong balance
     const newPrevMonths = monthlyRate > 0 ? parseFloat((newPrevBalance / monthlyRate).toFixed(1)) : 0;
 
-    // 4. BAGONG TOTAL DUE (Bagong Prev Balance + Monthly)
-    // Dahil bawas na ang paymentInput sa newPrevBalance, WALA NANG DOBLENG BAWAS DITO.
-    const remainingTotalDue = newPrevBalance + monthlyRate;
+    // 4. BAGONG TOTAL DUE CALCULATION:
+    // (Old Prev Balance + Monthly Plan) - Payment Input
+    const totalBeforePayment = oldPrevBal + monthlyRate;
+    const remainingTotalDue = Math.max(0, totalBeforePayment - paymentInput);
 
-    // Status: Paid lang kapag 0 na ang Prev Balance AT nabayaran na rin ang Monthly Rate
-    const newStatus = (newPrevBalance === 0 && paymentInput >= (oldPrevBal + monthlyRate)) ? "paid" : "unpaid";
+    // Status: PAID kapag nabayaran ang lahat ng lumang balance AT ang buwanang plan (0 na ang natira)
+    const newStatus = (remainingTotalDue === 0) ? "paid" : "unpaid";
 
     let formattedDueDate = item.dueDate;
     if (item.dueDate) {
@@ -1328,6 +1319,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     res.status(500).json({ error: "Server error: " + err.message });
   }
 });
+
 // ================= UNDO PAYMENT LOGIC =================
 app.put('/api/invoices/:id/undo-pay', async (req, res) => {
   try {
@@ -1372,11 +1364,8 @@ app.put('/api/invoices/:id', async (req, res) => {
     let updatedAmountPaid = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : (existingItem.amountPaid || 0);
     let updatedStatus = req.body.status !== undefined ? req.body.status : existingItem.status;
 
-    const calculatedTotalDue = (updatedPrevBal + updatedAmount) - updatedAmountPaid;
     if (updatedStatus === 'paid') {
       updatedPrevBal = 0;
-    } else if (calculatedTotalDue > 0) {
-      updatedPrevBal = Math.max(0, calculatedTotalDue - updatedAmount);
     }
 
     let updatedPrevMonths = updatedAmount > 0 ? (updatedPrevBal / updatedAmount) : 0;
@@ -1482,7 +1471,7 @@ app.get('/api/export-excel', async (req, res) => {
     filteredData.forEach((item, index) => {
       const itemStatus = (item.status || '').toLowerCase();
       const isExempt = itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout';
-      const totalDue = isExempt ? 0 : Math.max(0, ((Number(item.previousBalance) || 0) + (Number(item.amount) || 0)) - (Number(item.amountPaid) || 0));
+      const totalDue = isExempt ? 0 : Math.max(0, (Number(item.previousBalance) || 0) + (Number(item.amount) || 0));
       
       let actualPaid = Number(item.amountPaid) || 0;
       if (itemStatus === 'paid' && actualPaid === 0) {
