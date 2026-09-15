@@ -64,7 +64,6 @@ const getDB = async () => {
     let updated = false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayTotalMonths = today.getFullYear() * 12 + today.getMonth();
 
     for (let item of db) {
       if (!item || !item.dueDate) continue;
@@ -74,7 +73,6 @@ const getDB = async () => {
       due.setHours(0, 0, 0, 0);
 
       const billingDay = due.getDate();
-      const dueTotalMonths = due.getFullYear() * 12 + due.getMonth();
 
       let updatedThisItem = false;
       let newStatus = item.status;
@@ -83,9 +81,18 @@ const getDB = async () => {
       let newAmountPaid = Number(item.amountPaid) || 0;
       const monthlyAmount = Number(item.amount) || 0;
 
-      let tempDueMonths = dueTotalMonths;
+      // Helper function para makuha ang Cutoff Date (2 araw bago ang due date)
+      const getCutoffDate = (dateObj) => {
+        const cutoff = new Date(dateObj.getTime());
+        cutoff.setDate(cutoff.getDate() - 2);
+        cutoff.setHours(0, 0, 0, 0);
+        return cutoff;
+      };
 
-      while (todayTotalMonths > tempDueMonths) {
+      let cutoffDate = getCutoffDate(due);
+
+      // Kapag ang araw ngayon (today) ay umabot o lumagpas na sa cutoff date (2 days before due date)
+      while (today >= cutoffDate) {
         if (newStatus === 'paid') {
           newPrevBalance = 0;
           newPrevMonths = 0;
@@ -99,14 +106,14 @@ const getDB = async () => {
           newStatus = 'unpaid';
         }
 
+        // I-advance ang due date nang +1 buwan
         due.setMonth(due.getMonth() + 1);
-        tempDueMonths = due.getFullYear() * 12 + due.getMonth();
-        updatedThisItem = true;
-      }
-
-      if (updatedThisItem) {
         const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
         due.setDate(Math.min(billingDay, lastDayOfNewMonth));
+
+        // Kunin ang bagong cutoff date para sa susunod na buwan
+        cutoffDate = getCutoffDate(due);
+        updatedThisItem = true;
       }
 
       if (updatedThisItem && item.status !== 'free') {
