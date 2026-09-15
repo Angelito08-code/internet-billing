@@ -101,7 +101,7 @@ const getDB = async () => {
         } else if (newStatus === 'unpaid' || newStatus === 'reconnected') {
           const totalUnpaidBeforeRollover = (newPrevBalance + monthlyAmount) - newAmountPaid;
           newPrevBalance = Math.max(0, totalUnpaidBeforeRollover);
-          newPrevMonths = monthlyAmount > 0 ? Math.round((newPrevBalance / monthlyAmount) * 10) / 10 : 0;
+          newPrevMonths = monthlyAmount > 0 ? Math.round(newPrevBalance / monthlyAmount) : 0;
           newAmountPaid = 0;
           newStatus = 'unpaid';
         }
@@ -1285,7 +1285,7 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const newPrevBalance = Math.max(0, oldPrevBal - paymentInput);
     
     // Recalculate Prev. Mos base sa bagong balance
-    const newPrevMonths = monthlyRate > 0 ? parseFloat((newPrevBalance / monthlyRate).toFixed(1)) : 0;
+    const newPrevMonths = monthlyRate > 0 ? Math.round(newPrevBalance / monthlyRate) : 0;
 
     // 4. BAGONG TOTAL DUE CALCULATION:
     // (Old Prev Balance + Monthly Plan) - Payment Input
@@ -1386,7 +1386,7 @@ app.put('/api/invoices/:id', async (req, res) => {
       dueDate: req.body.dueDate !== undefined ? req.body.dueDate : existingItem.dueDate,
       amount: updatedAmount,
       previousBalance: updatedPrevBal,
-      previousBalanceMonths: Math.round(updatedPrevMonths * 10) / 10,
+      previousBalanceMonths: Math.round(updatedPrevMonths),
       amountPaid: updatedAmountPaid,
       status: updatedStatus
     };
