@@ -2,6 +2,13 @@ const express = require('express');
 const path = require('path');
 const ExcelJS = require('exceljs');
 const { createClient } = require('@supabase/supabase-js');
+import { defineConfig } from 'astro/config';
+import deno from '@deno/astro-adapter';
+
+export default defineConfig({
+  output: 'server', // or 'hybrid'
+  adapter: deno(),
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
