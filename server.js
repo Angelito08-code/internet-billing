@@ -1,39 +1,38 @@
-const express = require('express');
-const path = require('path');
-const ExcelJS = require('exceljs');
-const { createClient } = require('@supabase/supabase-js');
-import { defineConfig } from 'astro/config';
-import deno from '@deno/astro-adapter';
+import express from 'npm:express@^4.18.2';
+import ExcelJS from 'npm:exceljs@^4.3.0';
+import { createClient } from 'npm:@supabase/supabase-js@^2.39.0';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-export default defineConfig({
-  output: 'server', // or 'hybrid'
-  adapter: deno(),
-});
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Deno.env.get('PORT') || 8000;
 
 // ================= SUPABASE CONFIGURATION =================
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cytckucqmcyubwbhyhsx.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE0MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || 'https://cytckucqmcyubwbhyhsx.supabase.co';
+const SUPABASE_KEY = Deno.env.get('SUPABASE_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5dGNrdWNxbWN5dWJ3Ymh5aHN4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTczODA0MiwiZXhwIjoyMTAxMzE0MDQyfQ.UdwBWO_XaSaFC2J2z-I7GB_5DEy__Q-lo-f_U_jNvnY';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-const ADMIN_FILE = path.join(__dirname, 'admins.json');
-const fs = require('fs');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
-if (!fs.existsSync(ADMIN_FILE)) {
-  const initialAdmins = [{ id: 1, username: "admin", password: "admin123" }];
-  fs.writeFileSync(ADMIN_FILE, JSON.stringify(initialAdmins, null, 2));
-}
+// Admin management using Supabase (falls back to default admin if table is empty)
+const getAdmins = async () => {
+  try {
+    const { data, error } = await supabase.from('admins').select('*').order('id', { ascending: true });
+    if (error || !data || data.length === 0) {
+      return [{ id: 1, username: "admin", password: "admin123" }];
+    }
+    return data;
+  } catch (err) {
+    return [{ id: 1, username: "admin", password: "admin123" }];
+  }
+};
 
-const getAdmins = () => JSON.parse(fs.readFileSync(ADMIN_FILE, 'utf8'));
-const saveAdmins = (data) => fs.writeFileSync(ADMIN_FILE, JSON.stringify(data, null, 2));
-
-// Helper para maiwasan ang timezone offset issues sa mga petsa
+// Helper to avoid timezone offset issues on dates
 const parseLocalDate = (dateStr) => {
   if (!dateStr) return new Date();
   const cleanStr = String(dateStr).split('T')[0];
@@ -88,7 +87,7 @@ const getDB = async () => {
       let newAmountPaid = Number(item.amountPaid) || 0;
       const monthlyAmount = Number(item.amount) || 0;
 
-      // Helper function para makuha ang Cutoff Date (2 araw bago ang due date)
+      // Cutoff Date Helper (2 days before due date)
       const getCutoffDate = (dateObj) => {
         const cutoff = new Date(dateObj.getTime());
         cutoff.setDate(cutoff.getDate() - 2);
@@ -98,7 +97,6 @@ const getDB = async () => {
 
       let cutoffDate = getCutoffDate(due);
 
-      // Kapag ang araw ngayon (today) ay umabot o lumagpas na sa cutoff date (2 days before due date)
       while (today >= cutoffDate) {
         if (newStatus === 'paid') {
           newPrevBalance = 0;
@@ -113,12 +111,10 @@ const getDB = async () => {
           newStatus = 'unpaid';
         }
 
-        // I-advance ang due date nang +1 buwan
         due.setMonth(due.getMonth() + 1);
         const lastDayOfNewMonth = new Date(due.getFullYear(), due.getMonth() + 1, 0).getDate();
         due.setDate(Math.min(billingDay, lastDayOfNewMonth));
 
-        // Kunin ang bagong cutoff date para sa susunod na buwan
         cutoffDate = getCutoffDate(due);
         updatedThisItem = true;
       }
@@ -224,9 +220,9 @@ app.get('/', (req, res) => {
   `);
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
-  const admins = getAdmins();
+  const admins = await getAdmins();
   const admin = admins.find(a => a.username === username && a.password === password);
   
   if (admin) {
@@ -812,7 +808,6 @@ app.get('/dashboard', (req, res) => {
               var amount = Number(item.amount) || 0;
               var prevBal = Number(item.previousBalance) || 0;
               
-              // TOTAL DUE = Prev. Balance + Monthly Rate (Dahil nabawas na ang payment sa Prev. Balance)
               var totalDue = (itemStatus === 'disconnected' || itemStatus === 'free' || itemStatus === 'pullout') ? 0 : Math.max(0, prevBal + amount);
               
               var prevMos = item.previousBalanceMonths || 0;
@@ -1165,34 +1160,42 @@ app.get('/dashboard', (req, res) => {
 });
 
 // ================= ADMIN API ENDPOINTS =================
-app.get('/api/admins', (req, res) => {
-  res.json(getAdmins());
+app.get('/api/admins', async (req, res) => {
+  res.json(await getAdmins());
 });
 
-app.post('/api/admins', (req, res) => {
+app.post('/api/admins', async (req, res) => {
   const { username, password } = req.body;
-  const admins = getAdmins();
+  const admins = await getAdmins();
   if (admins.some(a => a.username === username)) {
     return res.status(400).json({ error: 'Username already exists.' });
   }
-  const newAdmin = {
-    id: admins.length > 0 ? admins[admins.length - 1].id + 1 : 1,
-    username,
-    password
-  };
-  admins.push(newAdmin);
-  saveAdmins(admins);
-  res.json(newAdmin);
+
+  try {
+    const { data, error } = await supabase.from('admins').insert([{ username, password }]).select();
+    if (error) {
+      // Fallback if table doesn't exist
+      return res.status(500).json({ error: "Supabase 'admins' table missing or write failed: " + error.message });
+    }
+    res.json(data[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error adding admin: ' + err.message });
+  }
 });
 
-app.delete('/api/admins/:id', (req, res) => {
-  let admins = getAdmins();
+app.delete('/api/admins/:id', async (req, res) => {
+  const admins = await getAdmins();
   if (admins.length <= 1) {
     return res.status(400).json({ error: 'Cannot delete the only admin.' });
   }
-  admins = admins.filter(a => a.id != req.params.id);
-  saveAdmins(admins);
-  res.json({ success: true });
+
+  try {
+    const { error } = await supabase.from('admins').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Cannot delete admin: " + err.message });
+  }
 });
 
 // ================= INVOICES SUPABASE API =================
@@ -1263,7 +1266,7 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// ================= PAYMENT LOGIC (EKSAKTONG SINGLE-DEDUCTION BAWAS) =================
+// ================= PAYMENT LOGIC =================
 app.put('/api/invoices/:id/pay', async (req, res) => {
   try {
     const targetId = String(req.params.id).trim();
@@ -1274,7 +1277,6 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
       return res.status(404).json({ error: "Customer not found" });
     }
 
-    // 1. Kunan ang eksaktong halaga ng ibinayad (e.g., 1000)
     const paymentInput = req.body.amountPaid !== undefined ? parseFloat(req.body.amountPaid) : 0;
     if (isNaN(paymentInput) || paymentInput < 0) {
       return res.status(400).json({ error: "Please enter a valid payment amount." });
@@ -1284,22 +1286,13 @@ app.put('/api/invoices/:id/pay', async (req, res) => {
     const oldPrevBal = parseFloat(item.previousBalance) || 0;
     const existingPaid = parseFloat(item.amountPaid) || 0;
 
-    // 2. Ipunin ang kabuuang naisumiteng bayad
     const newTotalPaid = existingPaid + paymentInput;
-
-    // 3. SINGLE DEDUCTION LOGIC:
-    // Unang ibawas ang paymentInput sa Prev Balance. Kapag mas malaki ang bayad, nababawasan ang Prev Balance papuntang 0.
     const newPrevBalance = Math.max(0, oldPrevBal - paymentInput);
-    
-    // Recalculate Prev. Mos base sa bagong balance
     const newPrevMonths = monthlyRate > 0 ? Math.round(newPrevBalance / monthlyRate) : 0;
 
-    // 4. BAGONG TOTAL DUE CALCULATION:
-    // (Old Prev Balance + Monthly Plan) - Payment Input
     const totalBeforePayment = oldPrevBal + monthlyRate;
     const remainingTotalDue = Math.max(0, totalBeforePayment - paymentInput);
 
-    // Status: PAID kapag nabayaran ang lahat ng lumang balance AT ang buwanang plan (0 na ang natira)
     const newStatus = (remainingTotalDue === 0) ? "paid" : "unpaid";
 
     let formattedDueDate = item.dueDate;
@@ -1609,5 +1602,5 @@ app.get('/api/export-excel', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log("🚀 R-TECH Billing Server is running at http://localhost:" + PORT);
+  console.log("🚀 R-TECH Billing Server is running on port " + PORT);
 });
