@@ -11,4 +11,13 @@
     "exceljs": "^4.4.0",
     "express": "^4.19.2"
   }
+  {
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+    "preview": "deno run --allow-net --allow-read --allow-env ./dist/server/entry.mjs"
+  }
 }
+
