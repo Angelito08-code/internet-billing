@@ -1,4 +1,4 @@
-import express from 'npm:express@^4.18.2';
+import express from 'express';
 import ExcelJS from 'npm:exceljs@^4.3.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2.39.0';
 import path from 'node:path';
