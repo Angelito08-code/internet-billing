@@ -869,7 +869,7 @@ app.get('/dashboard', (req, res) => {
           var paidMonth = prompt("Ilagay ang buwan na binabayaran (Halimbawa: September 2026):", "");
           if (paidMonth === null) return;
 
-          var inputVal = prompt("Enter amount paid by " + (item.name || 'Customer') + " para sa buwan ng " + paidMonth + " (₱):", defaultTotalDue);
+          var inputVal = prompt("Enter amount paid by " + (item.name || 'Customer') + " para sa buwan ng " + paidMonth + " (₱):", 0);
           if (inputVal === null) return;
 
           var amountPaid = parseFloat(inputVal);
