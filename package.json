@@ -1,11 +1,12 @@
 {
-  "name": "my-node-app",
+  "name": "internet-billing",
   "version": "1.0.0",
-  "description": "A Node.js application deployed on Render",
-  "main": "index.js",
+  "type": "module",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node server.js"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "express": "^4.19.2"
+  }
 }
