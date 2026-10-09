@@ -1,11 +1,7 @@
-import express from 'express';
-import ExcelJS from 'exceljs';
-import { createClient } from '@supabase/supabase-js';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const express = require('express');
+const ExcelJS = require('exceljs');
+const { createClient } = require('@supabase/supabase-js');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
