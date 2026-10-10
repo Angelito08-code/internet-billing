@@ -1,7 +1,7 @@
-module.exports = {
-  dependencies: {
-    "@supabase/supabase-js": "^2.x.x",
+{
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
     "express": "^4.19.2",
     "exceljs": "^4.4.0"
   }
-};
+}
