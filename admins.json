@@ -1,4 +1,4 @@
-module.exports = [
+[
   {
     "id": 1,
     "username": "admin",
@@ -9,4 +9,4 @@ module.exports = [
     "username": "Yong",
     "password": "password123"
   }
-];
+]
