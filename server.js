@@ -50,7 +50,7 @@ const getDB = async () => {
     if (error) throw error;
     let db = data || [];
     
-    // Sort strictly by ID ascending (with proper numeric comparison)
+    // Sort strictly by ID ascending (numeric) for dashboard/system view
     db.sort((a, b) => {
       let idA = a.id;
       let idB = b.id;
@@ -1565,8 +1565,13 @@ app.get('/api/export-excel', async (req, res) => {
   collectorsToProcess.forEach(collector => {
     const collectorItems = db.filter(item => (item.collector || '').toLowerCase().includes(collector.toLowerCase()));
     
-    // Sort collector items strictly by ID ascending (numeric)
+    // Sort primarily by Address alphabetically, then secondarily by ID ascending (numeric)
     collectorItems.sort((a, b) => {
+      let addrA = (a.address || '').trim().toUpperCase();
+      let addrB = (b.address || '').trim().toUpperCase();
+      if (addrA !== addrB) {
+        return addrA.localeCompare(addrB);
+      }
       let idA = a.id;
       let idB = b.id;
       let numA = Number(idA);
