@@ -50,13 +50,8 @@ const getDB = async () => {
     if (error) throw error;
     let db = data || [];
     
-    // Sort primarily by Address, then by ID (numeric or alphanumeric)
+    // Sort strictly by ID ascending (with proper numeric comparison)
     db.sort((a, b) => {
-      let addrA = (a.address || '').trim().toUpperCase();
-      let addrB = (b.address || '').trim().toUpperCase();
-      if (addrA !== addrB) {
-        return addrA.localeCompare(addrB);
-      }
       let idA = a.id;
       let idB = b.id;
       let numA = Number(idA);
@@ -1570,13 +1565,8 @@ app.get('/api/export-excel', async (req, res) => {
   collectorsToProcess.forEach(collector => {
     const collectorItems = db.filter(item => (item.collector || '').toLowerCase().includes(collector.toLowerCase()));
     
-    // Sort collector items primarily by Address, then by ID
+    // Sort collector items strictly by ID ascending (numeric)
     collectorItems.sort((a, b) => {
-      let addrA = (a.address || '').trim().toUpperCase();
-      let addrB = (b.address || '').trim().toUpperCase();
-      if (addrA !== addrB) {
-        return addrA.localeCompare(addrB);
-      }
       let idA = a.id;
       let idB = b.id;
       let numA = Number(idA);
