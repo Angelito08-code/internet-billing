@@ -50,7 +50,13 @@ const getDB = async () => {
     if (error) throw error;
     let db = data || [];
     
+    // Sort primarily by Address, then by ID (numeric or alphanumeric)
     db.sort((a, b) => {
+      let addrA = (a.address || '').trim().toUpperCase();
+      let addrB = (b.address || '').trim().toUpperCase();
+      if (addrA !== addrB) {
+        return addrA.localeCompare(addrB);
+      }
       let idA = a.id;
       let idB = b.id;
       let numA = Number(idA);
@@ -1564,6 +1570,23 @@ app.get('/api/export-excel', async (req, res) => {
   collectorsToProcess.forEach(collector => {
     const collectorItems = db.filter(item => (item.collector || '').toLowerCase().includes(collector.toLowerCase()));
     
+    // Sort collector items primarily by Address, then by ID
+    collectorItems.sort((a, b) => {
+      let addrA = (a.address || '').trim().toUpperCase();
+      let addrB = (b.address || '').trim().toUpperCase();
+      if (addrA !== addrB) {
+        return addrA.localeCompare(addrB);
+      }
+      let idA = a.id;
+      let idB = b.id;
+      let numA = Number(idA);
+      let numB = Number(idB);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return String(idA).localeCompare(String(idB), undefined, { numeric: true, sensitivity: 'base' });
+    });
+
     const items15th = filterByDueDate(collectorItems, true);
     const items30th = filterByDueDate(collectorItems, false);
 
